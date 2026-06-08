@@ -7,6 +7,8 @@ import com.videoguard.entity.Video;
 import com.videoguard.repository.VideoRepository;
 import jakarta.persistence.criteria.Predicate;
 import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -26,6 +28,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class VideoService {
 
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("mp4", "mov", "avi");
+    private static final Charset WINDOWS_1252 = Charset.forName("Windows-1252");
 
     private final VideoRepository videoRepository;
     private final Path uploadsRoot;
@@ -42,7 +45,10 @@ public class VideoService {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Video file is required.");
         }
-        if (!StringUtils.hasText(title)) {
+        String normalizedTitle = normalizeMultipartText(title);
+        String normalizedDescription = normalizeMultipartText(description);
+
+        if (!StringUtils.hasText(normalizedTitle)) {
             throw new IllegalArgumentException("Title is required.");
         }
         if (uploaderId == null) {
@@ -64,8 +70,8 @@ public class VideoService {
 
             Video video = new Video();
             video.setUploaderId(uploaderId);
-            video.setTitle(title.trim());
-            video.setDescription(description);
+            video.setTitle(normalizedTitle.trim());
+            video.setDescription(normalizedDescription);
             video.setOriginalFilename(originalFilename);
             video.setStoredFilename(storedFilename);
             video.setFilePath(Path.of("uploads", "videos", storedFilename).toString().replace("\\", "/"));
@@ -76,6 +82,38 @@ public class VideoService {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to save uploaded video.", e);
         }
+    }
+
+    private String normalizeMultipartText(String value) {
+        if (value == null || value.isBlank()) {
+            return value;
+        }
+        if (containsCjk(value) || !looksLikeMojibake(value)) {
+            return value;
+        }
+        return new String(value.getBytes(WINDOWS_1252), StandardCharsets.UTF_8);
+    }
+
+    private boolean containsCjk(String value) {
+        for (int i = 0; i < value.length(); i++) {
+            Character.UnicodeBlock block = Character.UnicodeBlock.of(value.charAt(i));
+            if (block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS
+                    || block == Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS
+                    || block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean looksLikeMojibake(String value) {
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (ch >= '\u00c0' && ch <= '\u00ff') {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Transactional(readOnly = true)
@@ -112,4 +150,3 @@ public class VideoService {
         return filename.substring(dotIndex + 1).toLowerCase(Locale.ROOT);
     }
 }
-

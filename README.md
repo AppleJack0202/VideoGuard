@@ -64,8 +64,17 @@ Import:
 
 ```bash
 mysql -u root -p video_guard < sql/schema.sql
-mysql -u root -p video_guard < sql/seed.sql
+mysql --default-character-set=utf8mb4 -u root -p video_guard < sql/seed.sql
 ```
+
+SpringBoot reads database credentials from environment variables when present:
+
+```text
+DB_USERNAME=root
+DB_PASSWORD=1234
+```
+
+If your local MySQL password is different, set `DB_PASSWORD` before starting the backend or update `backend-springboot/src/main/resources/application.yml` for local development.
 
 ### 2. FastAPI
 
@@ -120,4 +129,3 @@ http://localhost:5173
 6. Manual review workflow
 7. Statistics dashboard
 8. Demo script and course report materials
-
