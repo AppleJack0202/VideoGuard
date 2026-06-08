@@ -26,8 +26,9 @@ public class VideoDetailResponse {
     private String finalComment;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-    private List<Object> frames;
-    private List<Object> sensitiveHits;
+    private AiReviewResultResponse aiResult;
+    private List<VideoFrameResponse> frames;
+    private List<SensitiveHitResponse> sensitiveHits;
     private List<Object> reviewLogs;
 
     public static VideoDetailResponse from(Video video) {
@@ -218,19 +219,27 @@ public class VideoDetailResponse {
         this.updatedAt = updatedAt;
     }
 
-    public List<Object> getFrames() {
+    public AiReviewResultResponse getAiResult() {
+        return aiResult;
+    }
+
+    public void setAiResult(AiReviewResultResponse aiResult) {
+        this.aiResult = aiResult;
+    }
+
+    public List<VideoFrameResponse> getFrames() {
         return frames;
     }
 
-    public void setFrames(List<Object> frames) {
+    public void setFrames(List<VideoFrameResponse> frames) {
         this.frames = frames;
     }
 
-    public List<Object> getSensitiveHits() {
+    public List<SensitiveHitResponse> getSensitiveHits() {
         return sensitiveHits;
     }
 
-    public void setSensitiveHits(List<Object> sensitiveHits) {
+    public void setSensitiveHits(List<SensitiveHitResponse> sensitiveHits) {
         this.sensitiveHits = sensitiveHits;
     }
 
@@ -242,4 +251,3 @@ public class VideoDetailResponse {
         this.reviewLogs = reviewLogs;
     }
 }
-

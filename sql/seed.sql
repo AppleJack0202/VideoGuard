@@ -8,7 +8,7 @@ VALUES
 
 INSERT INTO sensitive_word (word, category, weight, enabled)
 VALUES
-  ('测试违规', 'violence', 20, 1),
+  ('测试违规', 'violence', 40, 1),
   ('暴力', 'violence', 30, 1),
   ('危险', 'violence', 20, 1),
   ('低俗', 'porn', 30, 1),

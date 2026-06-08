@@ -201,3 +201,106 @@
    - 敏感词命中
    - 审核日志预留区域
 
+## 2026-06-08 追加进展
+
+### 追加目标
+
+- 打通 SpringBoot 调用 FastAPI 的 AI 分析链路。
+- 将 AI 分析证据入库，形成“上传 -> AI 初审 -> 详情查看”的闭环。
+
+### 计划工作
+
+1. 新增 AI 结果相关实体和仓储：
+   - `SensitiveWord`
+   - `VideoFrame`
+   - `SensitiveHit`
+   - `AiReviewResult`
+2. 实现 `POST /api/videos/{id}/analyze`：
+   - 查询视频记录。
+   - 查询启用的敏感词。
+   - 调用 FastAPI `/ai/analyze`。
+   - 保存关键帧、敏感词命中和 AI 审核结果。
+   - 更新视频元数据、风险等级、风险分和状态。
+3. 更新视频详情接口，让详情页可以拿到：
+   - AI 评分结果
+   - 关键帧证据
+   - 敏感词命中证据
+
+### 追加完成工作
+
+- 新增 `SensitiveWord`、`VideoFrame`、`SensitiveHit`、`AiReviewResult` 实体。
+- 新增对应 Repository，用于保存 AI 分析证据。
+- 实现 `POST /api/videos/{id}/analyze` 后端接口。
+- SpringBoot 能调用 FastAPI `/ai/analyze`。
+- 分析完成后可写入：
+  - `video_frame`
+  - `sensitive_hit`
+  - `ai_review_result`
+- 分析完成后可更新 `video` 表的：
+  - `duration`
+  - `width`
+  - `height`
+  - `fps`
+  - `ai_risk_level`
+  - `ai_risk_score`
+  - `status`
+- 更新 `GET /api/videos/{id}`，返回 AI 结果、关键帧和敏感词命中。
+
+### 追加验证结果
+
+- `mvn -DskipTests package`：通过。
+- SpringBoot 新版服务重启成功：`http://localhost:8080/api/health` 返回正常。
+- FastAPI 服务可用：`http://localhost:8000/ai/health` 返回正常。
+- 对测试视频 ID `5` 调用 `POST /api/videos/5/analyze` 成功。
+- 分析后 `video` 表更新结果：
+  - `status = AI_SUSPICIOUS`
+  - `ai_risk_level = SUSPICIOUS`
+  - `ai_risk_score = 40`
+  - `duration = 2`
+  - `width = 320`
+  - `height = 180`
+  - `fps = 10`
+- `video_frame` 表写入 1 条关键帧记录。
+- `sensitive_hit` 表写入 1 条敏感词命中记录。
+- `ai_review_result` 表写入 1 条 AI 审核结果记录。
+- 关键帧静态访问验证通过：
+  - `/uploads/frames/5/frame_0000.jpg` 返回 `200`。
+
+### 追加问题与处理
+
+1. FastAPI 返回字段为 `snake_case`，Java DTO 初始未映射 `text_hits`
+   - 现象：AI 风险分已计算，但视频详情中的敏感词命中为空。
+   - 处理：为 `AiAnalyzeResponse` 补充 `@JsonProperty("text_hits")` 等字段映射。
+
+2. 测试敏感词权重过低
+   - 现象：命中 `测试违规` 后最终分数为 20，仍属于 `PASS`。
+   - 处理：将 `测试违规` 权重调整为 40，便于课程演示中稳定进入 `SUSPICIOUS`。
+
+### 当前新增能力
+
+截至本次追加，项目已经具备：
+
+```text
+上传视频
+-> 视频记录入库
+-> 调用 AI 服务分析
+-> 视频元数据入库
+-> 关键帧证据入库
+-> 敏感词命中入库
+-> AI 审核结果入库
+-> 视频状态更新为 AI_PASSED / AI_SUSPICIOUS / AI_VIOLATION
+-> 详情接口返回完整 AI 初审证据
+```
+
+### 下一步计划调整
+
+下一步优先进入前端真实接口接入：
+
+1. `/upload` 页面接入 `POST /api/videos/upload`。
+2. 上传成功后调用 `POST /api/videos/{id}/analyze`。
+3. `/videos` 页面接入 `GET /api/videos`。
+4. 视频详情页展示：
+   - 视频播放器
+   - AI 风险分
+   - 关键帧
+   - 敏感词命中

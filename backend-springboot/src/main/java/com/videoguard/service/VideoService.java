@@ -1,9 +1,23 @@
 package com.videoguard.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.videoguard.dto.AiAnalyzeResponse;
+import com.videoguard.dto.AiReviewResultResponse;
+import com.videoguard.dto.SensitiveHitResponse;
 import com.videoguard.dto.VideoDetailResponse;
+import com.videoguard.dto.VideoFrameResponse;
 import com.videoguard.dto.VideoListItemResponse;
 import com.videoguard.dto.VideoUploadResponse;
+import com.videoguard.entity.AiReviewResult;
+import com.videoguard.entity.SensitiveHit;
+import com.videoguard.entity.SensitiveWord;
 import com.videoguard.entity.Video;
+import com.videoguard.entity.VideoFrame;
+import com.videoguard.repository.AiReviewResultRepository;
+import com.videoguard.repository.SensitiveHitRepository;
+import com.videoguard.repository.SensitiveWordRepository;
+import com.videoguard.repository.VideoFrameRepository;
 import com.videoguard.repository.VideoRepository;
 import jakarta.persistence.criteria.Predicate;
 import java.io.IOException;
@@ -22,6 +36,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.web.client.RestClient;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
@@ -31,13 +46,34 @@ public class VideoService {
     private static final Charset WINDOWS_1252 = Charset.forName("Windows-1252");
 
     private final VideoRepository videoRepository;
+    private final SensitiveWordRepository sensitiveWordRepository;
+    private final VideoFrameRepository videoFrameRepository;
+    private final SensitiveHitRepository sensitiveHitRepository;
+    private final AiReviewResultRepository aiReviewResultRepository;
+    private final RestClient restClient;
+    private final ObjectMapper objectMapper;
     private final Path uploadsRoot;
+    private final Path projectRoot;
 
     public VideoService(
             VideoRepository videoRepository,
-            @Value("${videoguard.uploads-dir:uploads}") String uploadsDir) {
+            SensitiveWordRepository sensitiveWordRepository,
+            VideoFrameRepository videoFrameRepository,
+            SensitiveHitRepository sensitiveHitRepository,
+            AiReviewResultRepository aiReviewResultRepository,
+            RestClient.Builder restClientBuilder,
+            ObjectMapper objectMapper,
+            @Value("${videoguard.uploads-dir:uploads}") String uploadsDir,
+            @Value("${videoguard.ai-service.base-url:http://localhost:8000}") String aiServiceBaseUrl) {
         this.videoRepository = videoRepository;
+        this.sensitiveWordRepository = sensitiveWordRepository;
+        this.videoFrameRepository = videoFrameRepository;
+        this.sensitiveHitRepository = sensitiveHitRepository;
+        this.aiReviewResultRepository = aiReviewResultRepository;
+        this.restClient = restClientBuilder.baseUrl(aiServiceBaseUrl).build();
+        this.objectMapper = objectMapper;
         this.uploadsRoot = Path.of(uploadsDir).toAbsolutePath().normalize();
+        this.projectRoot = uploadsRoot.getParent();
     }
 
     @Transactional
@@ -139,7 +175,158 @@ public class VideoService {
     public VideoDetailResponse detail(Long id) {
         Video video = videoRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Video not found: " + id));
-        return VideoDetailResponse.from(video);
+        VideoDetailResponse response = VideoDetailResponse.from(video);
+        response.setFrames(videoFrameRepository.findByVideoIdOrderByTimestampSecAsc(id)
+                .stream()
+                .map(VideoFrameResponse::from)
+                .toList());
+        response.setSensitiveHits(sensitiveHitRepository.findByVideoIdOrderByCreatedAtAsc(id)
+                .stream()
+                .map(SensitiveHitResponse::from)
+                .toList());
+        response.setAiResult(aiReviewResultRepository.findTopByVideoIdOrderByCreatedAtDesc(id)
+                .map(AiReviewResultResponse::from)
+                .orElse(null));
+        return response;
+    }
+
+    @Transactional
+    public VideoDetailResponse analyze(Long id) {
+        Video video = videoRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Video not found: " + id));
+        video.setStatus("PROCESSING");
+        videoRepository.save(video);
+
+        List<SensitiveWord> sensitiveWords = sensitiveWordRepository.findByEnabled(1);
+        AiAnalyzeResponse.AnalyzeRequestPayload requestPayload = buildAnalyzeRequest(video, sensitiveWords);
+        AiAnalyzeResponse aiResponse = restClient.post()
+                .uri("/ai/analyze")
+                .body(requestPayload)
+                .retrieve()
+                .body(AiAnalyzeResponse.class);
+
+        if (aiResponse == null || aiResponse.getScores() == null) {
+            throw new IllegalStateException("AI service returned empty analysis result.");
+        }
+
+        clearPreviousAnalysis(video.getId());
+        saveMetadata(video, aiResponse);
+        saveFrames(video.getId(), aiResponse);
+        saveSensitiveHits(video.getId(), aiResponse);
+        saveAiReviewResult(video.getId(), aiResponse);
+
+        video.setAiRiskLevel(aiResponse.getRiskLevel());
+        video.setAiRiskScore(aiResponse.getScores().getFinalScore());
+        video.setStatus(toVideoStatus(aiResponse.getRiskLevel()));
+        videoRepository.save(video);
+
+        return detail(id);
+    }
+
+    private AiAnalyzeResponse.AnalyzeRequestPayload buildAnalyzeRequest(Video video, List<SensitiveWord> sensitiveWords) {
+        List<AiAnalyzeResponse.SensitiveWordPayload> words = sensitiveWords.stream()
+                .map(word -> new AiAnalyzeResponse.SensitiveWordPayload(
+                        word.getWord(),
+                        word.getCategory(),
+                        word.getWeight()))
+                .toList();
+
+        return new AiAnalyzeResponse.AnalyzeRequestPayload(
+                video.getId(),
+                projectRoot.resolve(video.getFilePath()).toAbsolutePath().normalize().toString(),
+                video.getTitle(),
+                video.getDescription() == null ? "" : video.getDescription(),
+                5,
+                words);
+    }
+
+    private void clearPreviousAnalysis(Long videoId) {
+        videoFrameRepository.deleteByVideoId(videoId);
+        sensitiveHitRepository.deleteByVideoId(videoId);
+        aiReviewResultRepository.deleteByVideoId(videoId);
+    }
+
+    private void saveMetadata(Video video, AiAnalyzeResponse aiResponse) {
+        AiAnalyzeResponse.Metadata metadata = aiResponse.getMetadata();
+        if (metadata == null) {
+            return;
+        }
+        video.setDuration(metadata.getDuration());
+        video.setWidth(metadata.getWidth());
+        video.setHeight(metadata.getHeight());
+        video.setFps(metadata.getFps());
+        if (metadata.getFileSize() != null) {
+            video.setFileSize(metadata.getFileSize());
+        }
+    }
+
+    private void saveFrames(Long videoId, AiAnalyzeResponse aiResponse) {
+        if (aiResponse.getFrames() == null) {
+            return;
+        }
+        List<VideoFrame> frames = aiResponse.getFrames().stream()
+                .map(frameResult -> {
+                    VideoFrame frame = new VideoFrame();
+                    frame.setVideoId(videoId);
+                    frame.setFramePath(frameResult.getFramePath());
+                    frame.setTimestampSec(frameResult.getTimestampSec());
+                    frame.setLabel(frameResult.getLabel());
+                    frame.setConfidence(frameResult.getConfidence());
+                    frame.setRiskScore(frameResult.getRiskScore());
+                    return frame;
+                })
+                .toList();
+        videoFrameRepository.saveAll(frames);
+    }
+
+    private void saveSensitiveHits(Long videoId, AiAnalyzeResponse aiResponse) {
+        if (aiResponse.getTextHits() == null) {
+            return;
+        }
+        List<SensitiveHit> hits = aiResponse.getTextHits().stream()
+                .map(textHit -> {
+                    SensitiveHit hit = new SensitiveHit();
+                    hit.setVideoId(videoId);
+                    hit.setSourceType(textHit.getSourceType());
+                    hit.setWord(textHit.getWord());
+                    hit.setCategory(textHit.getCategory());
+                    hit.setWeight(textHit.getWeight());
+                    hit.setContextText(textHit.getContextText());
+                    return hit;
+                })
+                .toList();
+        sensitiveHitRepository.saveAll(hits);
+    }
+
+    private void saveAiReviewResult(Long videoId, AiAnalyzeResponse aiResponse) {
+        AiAnalyzeResponse.Scores scores = aiResponse.getScores();
+        AiReviewResult result = new AiReviewResult();
+        result.setVideoId(videoId);
+        result.setTextScore(scores.getTextScore());
+        result.setImageScore(scores.getImageScore());
+        result.setAsrScore(scores.getAsrScore());
+        result.setFinalScore(scores.getFinalScore());
+        result.setRiskLevel(aiResponse.getRiskLevel());
+        result.setAsrText(aiResponse.getAsrText());
+        result.setRawResultJson(toJson(aiResponse));
+        aiReviewResultRepository.save(result);
+    }
+
+    private String toJson(AiAnalyzeResponse aiResponse) {
+        try {
+            return objectMapper.writeValueAsString(aiResponse);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to serialize AI result.", e);
+        }
+    }
+
+    private String toVideoStatus(String riskLevel) {
+        return switch (riskLevel) {
+            case "PASS" -> "AI_PASSED";
+            case "SUSPICIOUS" -> "AI_SUSPICIOUS";
+            case "VIOLATION" -> "AI_VIOLATION";
+            default -> "FAILED";
+        };
     }
 
     private String getExtension(String filename) {

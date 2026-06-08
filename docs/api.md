@@ -159,6 +159,64 @@ Redirects to the uploaded static file URL, for example:
 /uploads/videos/uuid.mp4
 ```
 
+### POST /api/videos/{id}/analyze
+
+Calls FastAPI `/ai/analyze`, persists the AI evidence, and updates the video status.
+
+Processing rules:
+
+```text
+PASS       -> AI_PASSED
+SUSPICIOUS -> AI_SUSPICIOUS
+VIOLATION  -> AI_VIOLATION
+```
+
+Response: same shape as `GET /api/videos/{id}`, with populated `aiResult`, `frames`, and `sensitiveHits`.
+
+Example:
+
+```bash
+curl -X POST http://localhost:8080/api/videos/1/analyze
+```
+
+Response excerpt:
+
+```json
+{
+  "id": 1,
+  "status": "AI_SUSPICIOUS",
+  "aiRiskLevel": "SUSPICIOUS",
+  "aiRiskScore": 40.0,
+  "aiResult": {
+    "textScore": 40.0,
+    "imageScore": 5.0,
+    "asrScore": 0.0,
+    "finalScore": 40.0,
+    "riskLevel": "SUSPICIOUS",
+    "asrText": ""
+  },
+  "frames": [
+    {
+      "framePath": "uploads/frames/1/frame_0000.jpg",
+      "frameUrl": "/uploads/frames/1/frame_0000.jpg",
+      "timestampSec": 0.0,
+      "label": "normal",
+      "confidence": 0.9,
+      "riskScore": 5.0
+    }
+  ],
+  "sensitiveHits": [
+    {
+      "sourceType": "TITLE",
+      "word": "测试违规",
+      "category": "violence",
+      "weight": 20,
+      "contextText": "测试违规演示视频"
+    }
+  ]
+}
+```
+
 ## Review
 
 Planned:

@@ -48,6 +48,11 @@ public class VideoController {
         return videoService.detail(id);
     }
 
+    @PostMapping("/{id}/analyze")
+    public VideoDetailResponse analyze(@PathVariable Long id) {
+        return videoService.analyze(id);
+    }
+
     @GetMapping("/{id}/play")
     public ResponseEntity<Void> playRedirect(@PathVariable Long id) {
         VideoDetailResponse detail = videoService.detail(id);
@@ -56,4 +61,3 @@ public class VideoController {
                 .build();
     }
 }
-
