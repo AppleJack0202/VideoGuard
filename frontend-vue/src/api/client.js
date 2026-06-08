@@ -102,3 +102,40 @@ export function fetchDailyUploads(days = 7) {
 export function fetchCategoryDistribution() {
   return request('/api/statistics/category-distribution')
 }
+
+export function fetchSensitiveWords(filters = {}) {
+  const params = new URLSearchParams()
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      params.set(key, value)
+    }
+  })
+  const query = params.toString()
+  return request(`/api/sensitive-words${query ? `?${query}` : ''}`)
+}
+
+export function createSensitiveWord(payload) {
+  return request('/api/sensitive-words', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  })
+}
+
+export function updateSensitiveWord(id, payload) {
+  return request(`/api/sensitive-words/${id}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  })
+}
+
+export function deleteSensitiveWord(id) {
+  return request(`/api/sensitive-words/${id}`, {
+    method: 'DELETE'
+  })
+}

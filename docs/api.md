@@ -288,7 +288,7 @@ Response:
 
 ## Sensitive Words
 
-Planned:
+Implemented:
 
 ```text
 GET    /api/sensitive-words
@@ -296,6 +296,51 @@ POST   /api/sensitive-words
 PUT    /api/sensitive-words/{id}
 DELETE /api/sensitive-words/{id}
 ```
+
+### GET /api/sensitive-words
+
+Query parameters:
+
+```text
+category: optional
+enabled: optional, 1 or 0
+```
+
+Response:
+
+```json
+[
+  {
+    "id": 1,
+    "word": "测试违规",
+    "category": "violence",
+    "weight": 40,
+    "enabled": 1,
+    "createdAt": "2026-06-08T20:00:00"
+  }
+]
+```
+
+### POST /api/sensitive-words
+
+Request:
+
+```json
+{
+  "word": "测试违规",
+  "category": "violence",
+  "weight": 40,
+  "enabled": 1
+}
+```
+
+### PUT /api/sensitive-words/{id}
+
+Request shape is the same as `POST /api/sensitive-words`.
+
+### DELETE /api/sensitive-words/{id}
+
+Deletes a sensitive word from the local rule dictionary.
 
 ## Statistics
 

@@ -425,3 +425,62 @@
 - 实现简化登录与角色展示。
 - 实现敏感词管理第一版。
 - 整理最终演示脚本和课程报告材料。
+
+## 2026-06-08 敏感词管理第一版完成
+
+### 本次目标
+
+- 实现敏感词管理后端接口。
+- 实现前端“敏感词管理”页面。
+- 让 AI 分析使用的敏感词库可以通过页面维护。
+
+### 完成工作
+
+- 新增敏感词 DTO：
+  - `SensitiveWordRequest`
+  - `SensitiveWordResponse`
+- 新增 `SensitiveWordService`。
+- 新增 `SensitiveWordController`。
+- 扩展 `SensitiveWordRepository`，支持动态筛选。
+- 后端新增接口：
+  - `GET /api/sensitive-words`
+  - `POST /api/sensitive-words`
+  - `PUT /api/sensitive-words/{id}`
+  - `DELETE /api/sensitive-words/{id}`
+- 前端 API 客户端新增敏感词管理方法。
+- 新增 `SensitiveWordsView.vue`：
+  - 支持按类别和启用状态筛选。
+  - 支持新增敏感词。
+  - 支持编辑敏感词。
+  - 支持启用/停用敏感词。
+  - 支持删除敏感词。
+- 更新侧边栏和路由，新增“敏感词管理”入口。
+- 更新 `docs/api.md`、`docs/project-progress.md`、`docs/acceptance-test-guide.md` 和本开发日志。
+
+### 验证结果
+
+- `mvn -DskipTests package`：通过。
+- `npm run build`：通过。
+- SpringBoot 重启成功，`http://localhost:8080/api/health` 返回正常。
+- Vue 页面 `http://localhost:5173/sensitive-words` 返回 `200`。
+- 敏感词接口冒烟测试通过：
+  - 初始敏感词数量：`6`
+  - 新增测试词成功，生成 ID `7`
+  - 编辑测试词成功，权重改为 `44`
+  - 停用测试词成功，`enabled = 0`
+  - 按 `category=custom&enabled=0` 筛选可查到测试词
+  - 删除测试词成功，删除后筛选结果为 `0`
+
+### 当前项目状态
+
+- 敏感词管理第一版已完成。
+- 现在系统具备：
+
+```text
+敏感词配置 -> 视频上传 -> AI 分析 -> 证据入库 -> 人工复审 -> 统计看板
+```
+
+### 下一步计划
+
+- 实现简化登录与角色展示。
+- 整理最终演示脚本和课程报告材料。

@@ -10,6 +10,7 @@
         <el-menu-item index="/upload">视频上传</el-menu-item>
         <el-menu-item index="/videos">视频管理</el-menu-item>
         <el-menu-item index="/review">人工复审</el-menu-item>
+        <el-menu-item index="/sensitive-words">敏感词管理</el-menu-item>
         <el-menu-item index="/login">登录</el-menu-item>
       </el-menu>
     </el-aside>

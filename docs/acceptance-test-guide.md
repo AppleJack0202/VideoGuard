@@ -133,6 +133,16 @@ http://localhost:5173/dashboard -> 200
    - 敏感类别分布
 4. 上传、AI 分析或提交复审后，刷新统计看板，观察指标变化。
 
+### 4.5 敏感词管理
+
+1. 进入“敏感词管理”页面。
+2. 检查表格中是否显示现有敏感词。
+3. 使用“敏感类别”和“启用状态”筛选。
+4. 点击“新增敏感词”，填写敏感词、类别、权重、启用状态。
+5. 点击“编辑”，修改权重或类别。
+6. 点击“停用”或“启用”，检查状态是否变化。
+7. 点击“删除”，确认记录从列表中移除。
+
 ## 5. 接口验收命令
 
 健康检查：
@@ -209,6 +219,19 @@ Invoke-RestMethod http://localhost:8080/api/statistics/status-distribution
 Invoke-RestMethod http://localhost:8080/api/statistics/category-distribution
 ```
 
+查看敏感词列表：
+
+```powershell
+Invoke-RestMethod http://localhost:8080/api/sensitive-words
+```
+
+新增敏感词：
+
+```powershell
+$body = @{ word = "测试词"; category = "custom"; weight = 20; enabled = 1 } | ConvertTo-Json
+Invoke-RestMethod -Method Post http://localhost:8080/api/sensitive-words -ContentType "application/json; charset=utf-8" -Body $body
+```
+
 检查关键帧静态资源：
 
 ```powershell
@@ -257,6 +280,17 @@ aiPassRate = 60.0
 riskDistribution 包含 PASS 和 SUSPICIOUS
 statusDistribution 包含 AI_PASSED、AI_SUSPICIOUS、MANUAL_REJECTED
 categoryDistribution 包含 violence
+```
+
+最近一次敏感词管理验收结果：
+
+```text
+初始敏感词数量 = 6
+新增 smoke_test_word 成功
+编辑为 smoke_test_word_updated 成功
+停用后 enabled = 0
+按 custom + disabled 筛选可查到
+删除测试词后筛选结果为 0
 ```
 
 ## 7. 常见问题
