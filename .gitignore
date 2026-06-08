@@ -1,0 +1,48 @@
+# upload and media
+uploads/
+samples/videos/
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.wav
+*.mp3
+
+# model cache
+models/
+*.pt
+*.pth
+*.onnx
+*.safetensors
+
+# env
+.env
+.env.local
+application-local.yml
+
+# Java
+target/
+*.class
+
+# Node
+node_modules/
+dist/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# logs
+logs/
+*.log
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
