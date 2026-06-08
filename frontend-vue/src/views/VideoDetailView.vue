@@ -66,6 +66,20 @@
         </div>
       </div>
     </div>
+
+    <div class="panel page">
+      <h3>复审日志</h3>
+      <el-table :data="video?.reviewLogs || []" border>
+        <el-table-column prop="reviewerId" label="审核员" width="100" />
+        <el-table-column prop="beforeStatus" label="原状态" width="140" />
+        <el-table-column prop="afterStatus" label="新状态" width="150" />
+        <el-table-column prop="afterResult" label="结论" width="100" />
+        <el-table-column prop="comment" label="意见" min-width="180" />
+        <el-table-column prop="createdAt" label="时间" width="190">
+          <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
+        </el-table-column>
+      </el-table>
+    </div>
   </section>
 </template>
 
@@ -102,6 +116,10 @@ async function handleAnalyze() {
   } finally {
     analyzing.value = false
   }
+}
+
+function formatDate(value) {
+  return value ? new Date(value).toLocaleString() : '-'
 }
 
 onMounted(loadDetail)

@@ -29,7 +29,7 @@ public class VideoDetailResponse {
     private AiReviewResultResponse aiResult;
     private List<VideoFrameResponse> frames;
     private List<SensitiveHitResponse> sensitiveHits;
-    private List<Object> reviewLogs;
+    private List<ReviewLogResponse> reviewLogs;
 
     public static VideoDetailResponse from(Video video) {
         VideoDetailResponse response = new VideoDetailResponse();
@@ -243,11 +243,11 @@ public class VideoDetailResponse {
         this.sensitiveHits = sensitiveHits;
     }
 
-    public List<Object> getReviewLogs() {
+    public List<ReviewLogResponse> getReviewLogs() {
         return reviewLogs;
     }
 
-    public void setReviewLogs(List<Object> reviewLogs) {
+    public void setReviewLogs(List<ReviewLogResponse> reviewLogs) {
         this.reviewLogs = reviewLogs;
     }
 }

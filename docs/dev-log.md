@@ -286,3 +286,75 @@
    - 准备正常视频和风险视频。
    - 完善 5 分钟演示脚本。
    - 整理课程报告中的系统架构、数据库设计和核心代码说明。
+
+## 2026-06-08 人工复审模块第一版完成
+
+### 本次目标
+
+- 实现人工复审后端接口。
+- 实现人工复审前端工作台。
+- 将人工复审结果写入 `video` 表和 `review_log` 表。
+- 更新项目进展、API 文档和交互验收指南。
+
+### 完成工作
+
+- 新增 `ReviewLog` 实体，对应数据库 `review_log` 表。
+- 新增 `ReviewLogRepository`。
+- 新增复审 DTO：
+  - `ReviewSubmitRequest`
+  - `ReviewLogResponse`
+- 新增 `ReviewService`：
+  - 查询待复审任务。
+  - 查询复审详情。
+  - 提交人工复审结论。
+  - 查询复审日志。
+- 新增 `ReviewController`：
+  - `GET /api/review/tasks`
+  - `GET /api/review/tasks/{videoId}`
+  - `POST /api/review/tasks/{videoId}/submit`
+  - `GET /api/review/logs/{videoId}`
+- 更新 `VideoService.detail`，让视频详情返回复审日志。
+- 更新 `VideoDetailResponse`，将 `reviewLogs` 调整为结构化复审日志列表。
+- 更新前端 API 客户端，新增复审相关方法：
+  - `fetchReviewTasks`
+  - `fetchReviewTask`
+  - `submitReview`
+  - `fetchReviewLogs`
+- 重写 `ReviewView.vue`：
+  - 左侧展示待复审任务列表。
+  - 右侧展示视频播放器、AI 风险信息、敏感词命中。
+  - 支持填写审核员 ID、复审结论和审核意见。
+  - 支持提交复审并刷新复审日志。
+- 更新 `VideoDetailView.vue`，展示复审日志。
+- 更新 `docs/api.md`、`docs/project-progress.md`、`docs/acceptance-test-guide.md`。
+
+### 验证结果
+
+- `mvn -DskipTests package`：通过。
+- `npm run build`：通过。
+- SpringBoot 重启成功，`http://localhost:8080/api/health` 返回正常。
+- Vue 页面 `http://localhost:5173/review` 返回 `200`。
+- `GET /api/review/tasks` 可返回待复审任务，当前保留视频 ID `5` 作为可疑样例。
+- 复审冒烟测试视频 ID `8`：
+  - 提交人工复审成功。
+  - 提交后状态：`MANUAL_REJECTED`
+  - 最终结论：`REJECT`
+  - `review_log` 可查询到复审记录。
+
+### 当前项目状态
+
+- 人工复审第一版已完成。
+- 现在系统已具备课程演示中的核心闭环：
+
+```text
+视频上传 -> AI 分析 -> 证据入库 -> 人工复审 -> 复审日志入库 -> 视频最终结论更新
+```
+
+### 下一步计划
+
+- 开始实现统计看板真实数据：
+  - 总视频数。
+  - 待复审数量。
+  - 风险等级分布。
+  - 每日上传趋势。
+  - 敏感词类别分布。

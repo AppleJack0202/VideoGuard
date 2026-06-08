@@ -148,10 +148,17 @@ body {
   background: #f3f4f6;
 }
 
+.review-workbench {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.9fr) minmax(520px, 1.6fr);
+  gap: 16px;
+}
+
 @media (max-width: 980px) {
   .detail-grid,
   .metric-grid,
-  .detail-metrics {
+  .detail-metrics,
+  .review-workbench {
     grid-template-columns: 1fr;
   }
 

@@ -53,3 +53,32 @@ export function fetchVideos(filters = {}) {
 export function fetchVideoDetail(videoId) {
   return request(`/api/videos/${videoId}`)
 }
+
+export function fetchReviewTasks(filters = {}) {
+  const params = new URLSearchParams()
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      params.set(key, value)
+    }
+  })
+  const query = params.toString()
+  return request(`/api/review/tasks${query ? `?${query}` : ''}`)
+}
+
+export function fetchReviewTask(videoId) {
+  return request(`/api/review/tasks/${videoId}`)
+}
+
+export function submitReview(videoId, payload) {
+  return request(`/api/review/tasks/${videoId}/submit`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  })
+}
+
+export function fetchReviewLogs(videoId) {
+  return request(`/api/review/logs/${videoId}`)
+}

@@ -58,8 +58,6 @@ http://localhost:5173
 
 ## 3. 健康检查
 
-在浏览器或 PowerShell 检查：
-
 ```text
 http://localhost:8080/api/health
 http://localhost:8000/ai/health
@@ -80,47 +78,43 @@ Vue 能打开页面
 http://localhost:8080/api/health -> 200
 http://localhost:8000/ai/health -> 200
 http://localhost:5173/videos/5 -> 200
+http://localhost:5173/review -> 200
 ```
 
 ## 4. 页面交互验收流程
 
-推荐演示流程：
+### 4.1 上传与 AI 分析
 
 1. 打开 `http://localhost:5173`。
 2. 进入“视频上传”页面。
 3. 选择一个 `.mp4` 视频。
-4. 标题填写：
-
-```text
-测试违规演示视频
-```
-
-5. 描述填写：
-
-```text
-课程演示上传
-```
-
-6. 上传人 ID 填：
-
-```text
-3
-```
-
+4. 标题填写：`测试违规演示视频`。
+5. 描述填写：`课程演示上传`。
+6. 上传人 ID 填：`3`。
 7. 点击“上传视频”。
 8. 上传成功后点击“开始 AI 分析”。
 9. 分析完成后进入视频详情页。
-10. 检查详情页是否展示：
-    - 视频播放器。
-    - 处理状态。
-    - AI 风险等级。
-    - 风险分。
-    - AI 分析结果。
-    - 敏感词命中。
-    - 视频关键帧。
-11. 进入“视频管理”页面。
-12. 检查列表中是否出现刚上传的视频。
-13. 使用“处理状态”和“风险等级”筛选。
+10. 检查详情页是否展示视频播放器、处理状态、AI 风险等级、风险分、AI 分析结果、敏感词命中、视频关键帧。
+
+### 4.2 视频管理
+
+1. 进入“视频管理”页面。
+2. 检查列表中是否出现刚上传的视频。
+3. 使用“处理状态”和“风险等级”筛选。
+4. 点击“详情”进入视频详情页。
+5. 点击“分析”可重新触发 AI 分析。
+
+### 4.3 人工复审
+
+1. 进入“人工复审”页面。
+2. 左侧待复审任务列表应显示 `AI_SUSPICIOUS` 或 `AI_VIOLATION` 视频。
+3. 点击一条任务，右侧应显示视频播放器、AI 风险分、敏感词命中和复审表单。
+4. 审核员 ID 填：`2`。
+5. 复审结论选择“通过”或“驳回”。
+6. 填写审核意见。
+7. 点击“提交复审”。
+8. 检查复审日志表是否新增记录。
+9. 回到视频详情页，检查最终结论和复审日志。
 
 ## 5. 接口验收命令
 
@@ -149,6 +143,25 @@ Invoke-RestMethod http://localhost:8080/api/videos/5
 Invoke-RestMethod -Method Post http://localhost:8080/api/videos/5/analyze
 ```
 
+查看待复审任务：
+
+```powershell
+Invoke-RestMethod http://localhost:8080/api/review/tasks
+```
+
+提交人工复审：
+
+```powershell
+$body = @{ reviewerId = 2; finalResult = "REJECT"; comment = "人工复审确认驳回。" } | ConvertTo-Json
+Invoke-RestMethod -Method Post http://localhost:8080/api/review/tasks/8/submit -ContentType "application/json; charset=utf-8" -Body $body
+```
+
+查看复审日志：
+
+```powershell
+Invoke-RestMethod http://localhost:8080/api/review/logs/8
+```
+
 检查关键帧静态资源：
 
 ```powershell
@@ -168,23 +181,27 @@ sensitiveHits 至少 1 条
 aiResult 不为空
 ```
 
-最近一次冒烟测试结果：
+人工复审提交后，预期结果类似：
 
 ```text
-上传视频 ID = 7
-上传状态 = UPLOADED
-AI 分析状态 = AI_PASSED
-AI 风险等级 = PASS
-AI 风险分 = 5
-关键帧数量 = 1
-敏感词命中数量 = 0
+finalResult = PASS 或 REJECT
+finalComment 不为空
+status = MANUAL_PASSED 或 MANUAL_REJECTED
+reviewLogs 至少 1 条
+```
+
+最近一次复审冒烟测试结果：
+
+```text
+视频 ID = 8
+提交后状态 = MANUAL_REJECTED
+最终结论 = REJECT
+复审日志数量 >= 1
 ```
 
 ## 7. 常见问题
 
 1. `8080` 被占用
-
-处理方式：
 
 ```powershell
 Get-NetTCPConnection -LocalPort 8080
@@ -209,12 +226,6 @@ http://localhost:8000/ai/health
 
 再检查 SpringBoot 日志是否有调用 AI 服务失败。
 
-5. 页面打不开
+5. 人工复审列表为空
 
-确认 Vue 服务是否启动：
-
-```text
-http://localhost:5173
-```
-
-如果端口不是 5173，以 Vite 控制台输出的地址为准。
+复审任务默认只显示 `AI_SUSPICIOUS` 或 `AI_VIOLATION` 且尚未人工复审的视频。可以先上传风险标题视频并触发 AI 分析，再回到“人工复审”页面查看。

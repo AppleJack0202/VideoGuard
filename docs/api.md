@@ -219,7 +219,7 @@ Response excerpt:
 
 ## Review
 
-Planned:
+Implemented:
 
 ```text
 GET  /api/review/tasks
@@ -228,14 +228,62 @@ POST /api/review/tasks/{videoId}/submit
 GET  /api/review/logs/{videoId}
 ```
 
+### GET /api/review/tasks
+
+Returns videos that need manual review. By default, this endpoint returns videos with status `AI_SUSPICIOUS` or `AI_VIOLATION` and no final manual result.
+
+Query parameters:
+
+```text
+status: optional, for example AI_SUSPICIOUS
+aiRiskLevel: optional, for example SUSPICIOUS
+```
+
+### GET /api/review/tasks/{videoId}
+
+Returns the same shape as `GET /api/videos/{id}`, including AI evidence and existing review logs.
+
+### POST /api/review/tasks/{videoId}/submit
+
 Submit request:
 
 ```json
 {
   "reviewerId": 2,
-  "finalResult": "PASS",
+  "finalResult": "REJECT",
   "comment": "Reviewed manually."
 }
+```
+
+Rules:
+
+```text
+finalResult = PASS   -> video.status = MANUAL_PASSED
+finalResult = REJECT -> video.status = MANUAL_REJECTED
+```
+
+The endpoint updates `video.final_result`, updates `video.final_comment`, and appends one row to `review_log`.
+
+### GET /api/review/logs/{videoId}
+
+Returns manual review logs ordered by newest first.
+
+Response:
+
+```json
+[
+  {
+    "id": 1,
+    "videoId": 8,
+    "reviewerId": 2,
+    "beforeStatus": "AI_PASSED",
+    "afterStatus": "MANUAL_REJECTED",
+    "beforeResult": null,
+    "afterResult": "REJECT",
+    "comment": "Reviewed manually.",
+    "createdAt": "2026-06-08T23:08:00"
+  }
+]
 ```
 
 ## Sensitive Words

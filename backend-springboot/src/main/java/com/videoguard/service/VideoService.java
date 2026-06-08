@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.videoguard.dto.AiAnalyzeResponse;
 import com.videoguard.dto.AiReviewResultResponse;
+import com.videoguard.dto.ReviewLogResponse;
 import com.videoguard.dto.SensitiveHitResponse;
 import com.videoguard.dto.VideoDetailResponse;
 import com.videoguard.dto.VideoFrameResponse;
@@ -15,6 +16,7 @@ import com.videoguard.entity.SensitiveWord;
 import com.videoguard.entity.Video;
 import com.videoguard.entity.VideoFrame;
 import com.videoguard.repository.AiReviewResultRepository;
+import com.videoguard.repository.ReviewLogRepository;
 import com.videoguard.repository.SensitiveHitRepository;
 import com.videoguard.repository.SensitiveWordRepository;
 import com.videoguard.repository.VideoFrameRepository;
@@ -50,6 +52,7 @@ public class VideoService {
     private final VideoFrameRepository videoFrameRepository;
     private final SensitiveHitRepository sensitiveHitRepository;
     private final AiReviewResultRepository aiReviewResultRepository;
+    private final ReviewLogRepository reviewLogRepository;
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
     private final Path uploadsRoot;
@@ -61,6 +64,7 @@ public class VideoService {
             VideoFrameRepository videoFrameRepository,
             SensitiveHitRepository sensitiveHitRepository,
             AiReviewResultRepository aiReviewResultRepository,
+            ReviewLogRepository reviewLogRepository,
             RestClient.Builder restClientBuilder,
             ObjectMapper objectMapper,
             @Value("${videoguard.uploads-dir:uploads}") String uploadsDir,
@@ -70,6 +74,7 @@ public class VideoService {
         this.videoFrameRepository = videoFrameRepository;
         this.sensitiveHitRepository = sensitiveHitRepository;
         this.aiReviewResultRepository = aiReviewResultRepository;
+        this.reviewLogRepository = reviewLogRepository;
         this.restClient = restClientBuilder.baseUrl(aiServiceBaseUrl).build();
         this.objectMapper = objectMapper;
         this.uploadsRoot = Path.of(uploadsDir).toAbsolutePath().normalize();
@@ -187,6 +192,10 @@ public class VideoService {
         response.setAiResult(aiReviewResultRepository.findTopByVideoIdOrderByCreatedAtDesc(id)
                 .map(AiReviewResultResponse::from)
                 .orElse(null));
+        response.setReviewLogs(reviewLogRepository.findByVideoIdOrderByCreatedAtDesc(id)
+                .stream()
+                .map(ReviewLogResponse::from)
+                .toList());
         return response;
     }
 
