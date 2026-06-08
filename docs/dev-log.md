@@ -265,6 +265,8 @@
 - `ai_review_result` 表写入 1 条 AI 审核结果记录。
 - 关键帧静态访问验证通过：
   - `/uploads/frames/5/frame_0000.jpg` 返回 `200`。
+- GitHub 推送完成：
+  - `55e6c28 feat: persist AI analysis results`
 
 ### 追加问题与处理
 
