@@ -1,0 +1,108 @@
+<template>
+  <section class="page">
+    <div class="panel detail-header">
+      <div>
+        <h2>{{ video?.title || '视频详情' }}</h2>
+        <p>{{ video?.description || '暂无描述' }}</p>
+      </div>
+      <div class="toolbar">
+        <el-button :loading="loading" @click="loadDetail">刷新</el-button>
+        <el-button type="primary" :loading="analyzing" @click="handleAnalyze">重新分析</el-button>
+      </div>
+    </div>
+
+    <div class="detail-grid">
+      <div class="panel">
+        <video v-if="video" class="video-player" controls :src="toAssetUrl(video.fileUrl)" />
+      </div>
+
+      <div class="panel page">
+        <div class="metric-grid detail-metrics">
+          <div class="metric">
+            <span>处理状态</span>
+            <strong>{{ video?.status || '-' }}</strong>
+          </div>
+          <div class="metric">
+            <span>风险等级</span>
+            <strong>{{ video?.aiRiskLevel || '-' }}</strong>
+          </div>
+          <div class="metric">
+            <span>风险分</span>
+            <strong>{{ video?.aiRiskScore ?? '-' }}</strong>
+          </div>
+          <div class="metric">
+            <span>时长</span>
+            <strong>{{ video?.duration ?? '-' }}s</strong>
+          </div>
+        </div>
+
+        <el-descriptions v-if="video?.aiResult" :column="1" border>
+          <el-descriptions-item label="最终风险分">{{ video.aiResult.finalScore ?? '-' }}</el-descriptions-item>
+          <el-descriptions-item label="AI 风险等级">{{ video.aiResult.riskLevel || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="文本风险分">{{ video.aiResult.textScore ?? '-' }}</el-descriptions-item>
+          <el-descriptions-item label="图像风险分">{{ video.aiResult.imageScore ?? '-' }}</el-descriptions-item>
+          <el-descriptions-item label="ASR 文本">{{ video.aiResult.asrText || '-' }}</el-descriptions-item>
+        </el-descriptions>
+      </div>
+    </div>
+
+    <div class="panel page">
+      <h3>敏感命中</h3>
+      <el-table :data="video?.sensitiveHits || []" border>
+        <el-table-column prop="sourceType" label="来源" width="120" />
+        <el-table-column prop="word" label="命中内容" min-width="160" />
+        <el-table-column prop="category" label="类别" width="140" />
+        <el-table-column prop="weight" label="权重" width="100" />
+        <el-table-column prop="contextText" label="上下文" min-width="180" />
+      </el-table>
+    </div>
+
+    <div class="panel page">
+      <h3>视频抽帧</h3>
+      <div class="frame-grid">
+        <div v-for="frame in video?.frames || []" :key="frame.id" class="frame-item">
+          <img :src="toAssetUrl(frame.frameUrl)" :alt="`frame-${frame.id}`" />
+          <span>{{ frame.timestampSec ?? 0 }}s</span>
+        </div>
+      </div>
+    </div>
+  </section>
+</template>
+
+<script setup>
+import { onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { analyzeVideo, fetchVideoDetail, toAssetUrl } from '../api/client'
+
+const route = useRoute()
+const video = ref(null)
+const loading = ref(false)
+const analyzing = ref(false)
+
+async function loadDetail() {
+  loading.value = true
+  try {
+    video.value = await fetchVideoDetail(route.params.id)
+  } catch (error) {
+    ElMessage.error(error.message)
+  } finally {
+    loading.value = false
+  }
+}
+
+async function handleAnalyze() {
+  analyzing.value = true
+  try {
+    await analyzeVideo(route.params.id)
+    ElMessage.success('AI 分析完成')
+    await loadDetail()
+  } catch (error) {
+    ElMessage.error(error.message)
+  } finally {
+    analyzing.value = false
+  }
+}
+
+onMounted(loadDetail)
+</script>

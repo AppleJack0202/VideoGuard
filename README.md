@@ -50,6 +50,18 @@ FastAPI:    http://localhost:8000
 MySQL:      localhost:3306
 ```
 
+## Project Documents
+
+```text
+docs/collaboration-guide.md      Team Git/GitHub collaboration guide
+docs/project-progress.md         Current progress, milestones, and next tasks
+docs/acceptance-test-guide.md    Startup steps and interactive acceptance checks
+docs/dev-log.md                  Daily development log for reports
+docs/api.md                      API design notes
+docs/database.md                 Database design notes
+docs/demo-script.md              Demo script draft
+```
+
 ## Quick Start
 
 ### 1. MySQL

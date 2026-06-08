@@ -32,4 +32,3 @@ const route = useRoute()
 
 const routeTitle = computed(() => route.meta.title || 'VideoGuard')
 </script>
-
