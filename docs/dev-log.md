@@ -358,3 +358,70 @@
   - 风险等级分布。
   - 每日上传趋势。
   - 敏感词类别分布。
+
+## 2026-06-08 统计看板真实数据第一版完成
+
+### 本次目标
+
+- 实现统计看板后端接口。
+- 将 Vue 统计看板从静态占位改为真实数据库数据。
+- 使用图表展示视频审核进展和风险分布。
+
+### 完成工作
+
+- 新增统计 DTO：
+  - `CountItemResponse`
+  - `StatisticsOverviewResponse`
+- 新增 `StatisticsService`。
+- 新增 `StatisticsController`。
+- 在 `VideoRepository` 中新增聚合查询：
+  - 今日上传数量。
+  - 待复审数量。
+  - 已人工复审数量。
+  - AI 通过数量。
+  - 风险等级分布。
+  - 处理状态分布。
+  - 近 7 日上传趋势。
+- 在 `SensitiveHitRepository` 中新增敏感类别分布统计。
+- 前端 API 客户端新增统计接口方法。
+- 重写 `DashboardView.vue`：
+  - 顶部指标展示总视频数、今日上传、AI 通过率、待复审、已人工复审。
+  - 使用 ECharts 展示风险等级分布。
+  - 使用 ECharts 展示近 7 日上传趋势。
+  - 使用 ECharts 展示处理状态分布。
+  - 使用 ECharts 展示敏感类别分布。
+- 更新 `docs/api.md`、`docs/project-progress.md`、`docs/acceptance-test-guide.md` 和本开发日志。
+
+### 验证结果
+
+- `mvn -DskipTests package`：通过。
+- `npm run build`：通过。
+- 修复一次 JPQL 日期聚合查询问题：`date_format` 返回类型需显式 `cast(... as string)`，否则 SpringBoot 启动时 Repository 查询校验失败。
+- SpringBoot 重启成功，`http://localhost:8080/api/health` 返回正常。
+- Vue 页面 `http://localhost:5173/dashboard` 返回 `200`。
+- 统计接口验证结果：
+  - `GET /api/statistics/overview` 返回：
+    - `totalVideos = 5`
+    - `todayUploads = 5`
+    - `pendingReviews = 1`
+    - `manualReviewed = 1`
+    - `aiPassRate = 60.0`
+  - `GET /api/statistics/risk-distribution` 返回 `PASS`、`SUSPICIOUS`。
+  - `GET /api/statistics/status-distribution` 返回 `AI_PASSED`、`AI_SUSPICIOUS`、`MANUAL_REJECTED`。
+  - `GET /api/statistics/daily-upload?days=7` 返回 `2026-06-08` 当日上传数量。
+  - `GET /api/statistics/category-distribution` 返回 `violence` 类别命中数量。
+
+### 当前项目状态
+
+- 统计看板真实数据第一版已完成。
+- 系统已具备课程演示需要的主要业务闭环：
+
+```text
+视频上传 -> AI 分析 -> 证据入库 -> 人工复审 -> 复审日志入库 -> 统计看板汇总展示
+```
+
+### 下一步计划
+
+- 实现简化登录与角色展示。
+- 实现敏感词管理第一版。
+- 整理最终演示脚本和课程报告材料。

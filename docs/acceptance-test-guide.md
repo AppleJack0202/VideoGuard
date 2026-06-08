@@ -79,6 +79,7 @@ http://localhost:8080/api/health -> 200
 http://localhost:8000/ai/health -> 200
 http://localhost:5173/videos/5 -> 200
 http://localhost:5173/review -> 200
+http://localhost:5173/dashboard -> 200
 ```
 
 ## 4. 页面交互验收流程
@@ -115,6 +116,22 @@ http://localhost:5173/review -> 200
 7. 点击“提交复审”。
 8. 检查复审日志表是否新增记录。
 9. 回到视频详情页，检查最终结论和复审日志。
+
+### 4.4 统计看板
+
+1. 进入“统计看板”页面。
+2. 检查顶部指标是否显示真实数字：
+   - 总视频数
+   - 今日上传
+   - AI 通过率
+   - 待复审
+   - 已人工复审
+3. 检查页面是否显示四个图表：
+   - 风险等级分布
+   - 近 7 日上传趋势
+   - 处理状态分布
+   - 敏感类别分布
+4. 上传、AI 分析或提交复审后，刷新统计看板，观察指标变化。
 
 ## 5. 接口验收命令
 
@@ -162,6 +179,36 @@ Invoke-RestMethod -Method Post http://localhost:8080/api/review/tasks/8/submit -
 Invoke-RestMethod http://localhost:8080/api/review/logs/8
 ```
 
+查看统计概览：
+
+```powershell
+Invoke-RestMethod http://localhost:8080/api/statistics/overview
+```
+
+查看风险等级分布：
+
+```powershell
+Invoke-RestMethod http://localhost:8080/api/statistics/risk-distribution
+```
+
+查看每日上传趋势：
+
+```powershell
+Invoke-RestMethod "http://localhost:8080/api/statistics/daily-upload?days=7"
+```
+
+查看处理状态分布：
+
+```powershell
+Invoke-RestMethod http://localhost:8080/api/statistics/status-distribution
+```
+
+查看敏感类别分布：
+
+```powershell
+Invoke-RestMethod http://localhost:8080/api/statistics/category-distribution
+```
+
 检查关键帧静态资源：
 
 ```powershell
@@ -197,6 +244,19 @@ reviewLogs 至少 1 条
 提交后状态 = MANUAL_REJECTED
 最终结论 = REJECT
 复审日志数量 >= 1
+```
+
+最近一次统计接口验收结果：
+
+```text
+totalVideos = 5
+todayUploads = 5
+pendingReviews = 1
+manualReviewed = 1
+aiPassRate = 60.0
+riskDistribution 包含 PASS 和 SUSPICIOUS
+statusDistribution 包含 AI_PASSED、AI_SUSPICIOUS、MANUAL_REJECTED
+categoryDistribution 包含 violence
 ```
 
 ## 7. 常见问题

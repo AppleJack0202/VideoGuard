@@ -299,13 +299,78 @@ DELETE /api/sensitive-words/{id}
 
 ## Statistics
 
-Planned:
+Implemented:
 
 ```text
 GET /api/statistics/overview
 GET /api/statistics/risk-distribution
 GET /api/statistics/daily-upload
+GET /api/statistics/status-distribution
 GET /api/statistics/category-distribution
+```
+
+### GET /api/statistics/overview
+
+Response:
+
+```json
+{
+  "totalVideos": 5,
+  "todayUploads": 5,
+  "pendingReviews": 1,
+  "manualReviewed": 1,
+  "aiPassed": 3,
+  "aiPassRate": 60.0
+}
+```
+
+### GET /api/statistics/risk-distribution
+
+Response:
+
+```json
+[
+  { "name": "PASS", "count": 4 },
+  { "name": "SUSPICIOUS", "count": 1 }
+]
+```
+
+### GET /api/statistics/status-distribution
+
+Response:
+
+```json
+[
+  { "name": "AI_PASSED", "count": 3 },
+  { "name": "AI_SUSPICIOUS", "count": 1 },
+  { "name": "MANUAL_REJECTED", "count": 1 }
+]
+```
+
+### GET /api/statistics/daily-upload
+
+Query parameters:
+
+```text
+days: optional, default 7, max 30
+```
+
+Response:
+
+```json
+[
+  { "name": "2026-06-08", "count": 5 }
+]
+```
+
+### GET /api/statistics/category-distribution
+
+Response:
+
+```json
+[
+  { "name": "violence", "count": 1 }
+]
 ```
 
 ## FastAPI AI Service

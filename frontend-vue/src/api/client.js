@@ -82,3 +82,23 @@ export function submitReview(videoId, payload) {
 export function fetchReviewLogs(videoId) {
   return request(`/api/review/logs/${videoId}`)
 }
+
+export function fetchStatisticsOverview() {
+  return request('/api/statistics/overview')
+}
+
+export function fetchRiskDistribution() {
+  return request('/api/statistics/risk-distribution')
+}
+
+export function fetchStatusDistribution() {
+  return request('/api/statistics/status-distribution')
+}
+
+export function fetchDailyUploads(days = 7) {
+  return request(`/api/statistics/daily-upload?days=${days}`)
+}
+
+export function fetchCategoryDistribution() {
+  return request('/api/statistics/category-distribution')
+}
