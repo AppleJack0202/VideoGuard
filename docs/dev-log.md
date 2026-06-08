@@ -7,3 +7,4 @@
 - Added initial database schema and seed data.
 - Added initial API documentation.
 - Implemented FastAPI AI MVP endpoints for metadata, frame extraction, text detection, image detection, and unified analysis.
+- Added SpringBoot MySQL/JPA setup and initial video upload/list/detail APIs.

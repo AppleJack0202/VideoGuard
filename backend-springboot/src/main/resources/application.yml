@@ -4,13 +4,23 @@ server:
 spring:
   application:
     name: videoguard-backend
+  datasource:
+    url: jdbc:mysql://localhost:3306/video_guard?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
   servlet:
     multipart:
       max-file-size: 200MB
       max-request-size: 220MB
 
 videoguard:
-  uploads-dir: uploads
+  uploads-dir: ../uploads
   ai-service:
     base-url: http://localhost:8000
-

@@ -79,8 +79,84 @@ Response:
   "videoId": 1,
   "title": "demo",
   "filePath": "uploads/videos/uuid.mp4",
+  "fileUrl": "/uploads/videos/uuid.mp4",
   "status": "UPLOADED"
 }
+```
+
+Example:
+
+```bash
+curl -X POST http://localhost:8080/api/videos/upload \
+  -F "file=@D:/demo/normal.mp4" \
+  -F "title=正常视频" \
+  -F "description=课程演示视频" \
+  -F "uploaderId=3"
+```
+
+### GET /api/videos
+
+Query parameters:
+
+```text
+status: optional
+aiRiskLevel: optional
+```
+
+Response:
+
+```json
+[
+  {
+    "id": 1,
+    "title": "正常视频",
+    "uploaderId": 3,
+    "createdAt": "2026-06-08T20:00:00",
+    "status": "UPLOADED",
+    "aiRiskLevel": null,
+    "aiRiskScore": 0.0,
+    "fileSize": 123456,
+    "duration": null
+  }
+]
+```
+
+### GET /api/videos/{id}
+
+Response:
+
+```json
+{
+  "id": 1,
+  "uploaderId": 3,
+  "title": "正常视频",
+  "description": "课程演示视频",
+  "originalFilename": "normal.mp4",
+  "storedFilename": "uuid.mp4",
+  "filePath": "uploads/videos/uuid.mp4",
+  "fileUrl": "/uploads/videos/uuid.mp4",
+  "fileSize": 123456,
+  "duration": null,
+  "width": null,
+  "height": null,
+  "fps": null,
+  "status": "UPLOADED",
+  "aiRiskLevel": null,
+  "aiRiskScore": 0.0,
+  "finalResult": null,
+  "finalComment": null,
+  "frames": [],
+  "sensitiveHits": [],
+  "reviewLogs": []
+}
+```
+
+### GET /api/videos/{id}/play
+
+Redirects to the uploaded static file URL, for example:
+
+```text
+/uploads/videos/uuid.mp4
 ```
 
 ## Review
