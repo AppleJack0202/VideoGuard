@@ -128,6 +128,92 @@ GET /api/statistics/category-distribution
 
 ## FastAPI AI Service
 
+### POST /ai/metadata
+
+Request:
+
+```json
+{
+  "video_id": 1,
+  "video_path": "D:/projects/video-guard/uploads/videos/demo.mp4"
+}
+```
+
+Response:
+
+```json
+{
+  "video_id": 1,
+  "duration": 12.3,
+  "width": 1280,
+  "height": 720,
+  "fps": 30.0,
+  "file_size": 12345678
+}
+```
+
+### POST /ai/extract-frames
+
+Request:
+
+```json
+{
+  "video_id": 1,
+  "video_path": "D:/projects/video-guard/uploads/videos/demo.mp4",
+  "frame_interval_sec": 5
+}
+```
+
+Response:
+
+```json
+{
+  "video_id": 1,
+  "frames": [
+    {
+      "frame_path": "uploads/frames/1/frame_0000.jpg",
+      "timestamp_sec": 0
+    }
+  ]
+}
+```
+
+### POST /ai/text-detect
+
+Request:
+
+```json
+{
+  "video_id": 1,
+  "title": "测试标题",
+  "description": "测试描述",
+  "asr_text": "",
+  "sensitive_words": [
+    {
+      "word": "测试违规",
+      "category": "violence",
+      "weight": 20
+    }
+  ]
+}
+```
+
+### POST /ai/image-detect
+
+Request:
+
+```json
+{
+  "video_id": 1,
+  "frames": [
+    {
+      "frame_path": "uploads/frames/1/frame_0000.jpg",
+      "timestamp_sec": 0
+    }
+  ]
+}
+```
+
 ### POST /ai/analyze
 
 Request:
@@ -174,3 +260,10 @@ Response:
 }
 ```
 
+Windows PowerShell note: when testing Chinese JSON manually, send UTF-8 bytes or use a Python client. Otherwise PowerShell may display response text as mojibake even when the API logic is correct.
+
+Python test example:
+
+```bash
+python -c "import json, urllib.request; body={'video_id':1,'video_path':'D:/zaproject/Real_Projects/VideoGuard/uploads/videos/text_risk.mp4','title':'这个标题包含测试违规词','description':'课程演示视频','frame_interval_sec':1,'sensitive_words':[{'word':'测试违规','category':'violence','weight':40}]}; data=json.dumps(body, ensure_ascii=False).encode('utf-8'); req=urllib.request.Request('http://localhost:8000/ai/analyze', data=data, headers={'Content-Type':'application/json; charset=utf-8'}); print(urllib.request.urlopen(req).read().decode('utf-8'))"
+```
