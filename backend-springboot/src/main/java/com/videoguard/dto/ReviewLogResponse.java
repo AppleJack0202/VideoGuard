@@ -1,6 +1,7 @@
 package com.videoguard.dto;
 
 import com.videoguard.entity.ReviewLog;
+import com.videoguard.entity.User;
 import java.time.LocalDateTime;
 
 public class ReviewLogResponse {
@@ -8,6 +9,7 @@ public class ReviewLogResponse {
     private Long id;
     private Long videoId;
     private Long reviewerId;
+    private String reviewerDisplayName;
     private String beforeStatus;
     private String afterStatus;
     private String beforeResult;
@@ -16,10 +18,15 @@ public class ReviewLogResponse {
     private LocalDateTime createdAt;
 
     public static ReviewLogResponse from(ReviewLog log) {
+        return from(log, null);
+    }
+
+    public static ReviewLogResponse from(ReviewLog log, User reviewer) {
         ReviewLogResponse response = new ReviewLogResponse();
         response.setId(log.getId());
         response.setVideoId(log.getVideoId());
         response.setReviewerId(log.getReviewerId());
+        response.setReviewerDisplayName(resolveReviewerDisplayName(log, reviewer));
         response.setBeforeStatus(log.getBeforeStatus());
         response.setAfterStatus(log.getAfterStatus());
         response.setBeforeResult(log.getBeforeResult());
@@ -27,6 +34,16 @@ public class ReviewLogResponse {
         response.setComment(log.getComment());
         response.setCreatedAt(log.getCreatedAt());
         return response;
+    }
+
+    private static String resolveReviewerDisplayName(ReviewLog log, User reviewer) {
+        if (reviewer == null) {
+            return "用户#" + log.getReviewerId();
+        }
+        if (reviewer.getDisplayName() != null && !reviewer.getDisplayName().isBlank()) {
+            return reviewer.getDisplayName();
+        }
+        return reviewer.getUsername();
     }
 
     public Long getId() {
@@ -51,6 +68,14 @@ public class ReviewLogResponse {
 
     public void setReviewerId(Long reviewerId) {
         this.reviewerId = reviewerId;
+    }
+
+    public String getReviewerDisplayName() {
+        return reviewerDisplayName;
+    }
+
+    public void setReviewerDisplayName(String reviewerDisplayName) {
+        this.reviewerDisplayName = reviewerDisplayName;
     }
 
     public String getBeforeStatus() {

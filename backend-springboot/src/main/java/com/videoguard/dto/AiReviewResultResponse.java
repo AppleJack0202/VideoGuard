@@ -1,6 +1,7 @@
 package com.videoguard.dto;
 
 import com.videoguard.entity.AiReviewResult;
+import com.videoguard.service.WorkflowConstants;
 
 public class AiReviewResultResponse {
 
@@ -20,7 +21,7 @@ public class AiReviewResultResponse {
         response.setImageScore(result.getImageScore());
         response.setAsrScore(result.getAsrScore());
         response.setFinalScore(result.getFinalScore());
-        response.setRiskLevel(result.getRiskLevel());
+        response.setRiskLevel(WorkflowConstants.normalizeRiskLevel(result.getRiskLevel()));
         response.setAsrText(result.getAsrText());
         return response;
     }
@@ -73,4 +74,3 @@ public class AiReviewResultResponse {
         this.asrText = asrText;
     }
 }
-

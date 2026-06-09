@@ -88,18 +88,18 @@ http://localhost:5173/login -> 200
 ### 4.1 登录与角色展示
 
 1. 打开 `http://localhost:5173/login`。
-2. 用户名选择 `reviewer`，密码填写 `123456`。
+2. 点击演示账号“审核员一号”，密码填写 `123456`。
 3. 点击“登录”。
-4. 登录成功后应进入“统计看板”。
-5. 顶部栏应显示当前用户名 `reviewer` 和角色 `REVIEWER`。
+4. 登录成功后应进入“人工复审”。
+5. 顶部栏应显示当前用户名 `审核员一号` 和角色 `审核员`。
 6. 点击“退出”后应回到登录页。
 
 可用于演示的账号：
 
 ```text
-admin    -> ADMIN
-reviewer -> REVIEWER
-user     -> USER
+admin    -> 系统管理员 / 管理员
+reviewer -> 审核员一号 / 审核员
+user     -> 普通用户一号 / 一般用户
 ```
 
 说明：当前是课程演示阶段，种子用户密码为占位值，任意非空密码均可登录。
@@ -111,11 +111,9 @@ user     -> USER
 3. 选择一个 `.mp4` 视频。
 4. 标题填写：`测试违规演示视频`。
 5. 描述填写：`课程演示上传`。
-6. 上传人 ID 填：`3`。
-7. 点击“上传视频”。
-8. 上传成功后点击“开始 AI 分析”。
-9. 分析完成后进入视频详情页。
-10. 检查详情页是否展示视频播放器、处理状态、AI 风险等级、风险分、AI 分析结果、敏感词命中、视频关键帧。
+6. 点击“上传视频”。
+7. 上传后等待后台自动预审。
+8. 进入“我的上传”或视频详情页，检查状态从 `已上传` 变为 `通过` 或 `复审中`。
 
 ### 4.3 视频管理
 
@@ -128,13 +126,13 @@ user     -> USER
 ### 4.4 人工复审
 
 1. 进入“人工复审”页面。
-2. 左侧待复审任务列表应显示 `AI_SUSPICIOUS` 或 `AI_VIOLATION` 视频。
+2. 左侧待复审任务列表应显示状态为 `复审中` 的视频。
 3. 点击一条任务，右侧应显示视频播放器、AI 风险分、敏感词命中和复审表单。
-4. 审核员 ID 填：`2`。
-5. 复审结论选择“通过”或“驳回”。
+4. 复审结论选择“通过”“驳回”或“待申诉”。
+5. 如不是“通过”，选择违规类别。
 6. 填写审核意见。
 7. 点击“提交复审”。
-8. 检查复审日志表是否新增记录。
+8. 检查复审日志表是否新增记录，审核员应显示 `审核员一号`。
 9. 回到视频详情页，检查最终结论和复审日志。
 
 ### 4.5 统计看板
@@ -207,8 +205,8 @@ Invoke-RestMethod http://localhost:8081/api/review/tasks
 提交人工复审：
 
 ```powershell
-$body = @{ reviewerId = 2; finalResult = "REJECT"; comment = "人工复审确认驳回。" } | ConvertTo-Json
-Invoke-RestMethod -Method Post http://localhost:8081/api/review/tasks/8/submit -ContentType "application/json; charset=utf-8" -Body $body
+$body = @{ status = "驳回"; violationCategory = "暴力"; comment = "人工复审确认驳回。" } | ConvertTo-Json
+Invoke-RestMethod -Method Post http://localhost:8081/api/review/tasks/8/submit -Headers $headers -ContentType "application/json; charset=utf-8" -Body $body
 ```
 
 查看复审日志：
@@ -271,8 +269,8 @@ Invoke-WebRequest http://localhost:8081/uploads/frames/5/frame_0000.jpg
 风险标题 `测试违规演示视频` 命中敏感词后，预期结果类似：
 
 ```text
-status = AI_SUSPICIOUS
-aiRiskLevel = SUSPICIOUS
+status = 复审中
+aiRiskLevel = 可疑
 aiRiskScore = 40
 frames 至少 1 条
 sensitiveHits 至少 1 条
@@ -282,9 +280,9 @@ aiResult 不为空
 人工复审提交后，预期结果类似：
 
 ```text
-finalResult = PASS 或 REJECT
+finalResult = 正常 / 可疑 / 违规
 finalComment 不为空
-status = MANUAL_PASSED 或 MANUAL_REJECTED
+status = 通过 / 待申诉 / 驳回
 reviewLogs 至少 1 条
 ```
 
@@ -292,8 +290,8 @@ reviewLogs 至少 1 条
 
 ```text
 视频 ID = 8
-提交后状态 = MANUAL_REJECTED
-最终结论 = REJECT
+提交后状态 = 驳回
+最终结论 = 违规
 复审日志数量 >= 1
 ```
 
@@ -305,9 +303,9 @@ todayUploads = 5
 pendingReviews = 1
 manualReviewed = 1
 aiPassRate = 60.0
-riskDistribution 包含 PASS 和 SUSPICIOUS
-statusDistribution 包含 AI_PASSED、AI_SUSPICIOUS、MANUAL_REJECTED
-categoryDistribution 包含 violence
+riskDistribution 包含 正常 和 可疑
+statusDistribution 包含 通过、复审中、驳回
+categoryDistribution 包含 暴力
 ```
 
 最近一次敏感词管理验收结果：
@@ -352,7 +350,7 @@ http://localhost:8000/ai/health
 
 5. 人工复审列表为空
 
-复审任务默认只显示 `AI_SUSPICIOUS` 或 `AI_VIOLATION` 且尚未人工复审的视频。可以先上传风险标题视频并触发 AI 分析，再回到“人工复审”页面查看。
+复审任务默认只显示状态为 `复审中` 且尚未人工复审的视频。可以先上传风险标题视频，等待后台自动预审后，再回到“人工复审”页面查看。
 
 ## 8. 改进版验收流程
 

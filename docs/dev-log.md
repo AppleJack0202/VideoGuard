@@ -715,3 +715,39 @@
 
 - 用户身份展示细节已补齐。
 - 后续重点仍是最终演示、报告材料整理和可选 AI 高级模型增强。
+
+## 2026-06-09 复审提交与中文编码修复
+
+### 本次目标
+
+- 继续完善改进需求中的复审流程细节。
+- 避免前端伪造 `reviewerId`，让复审日志中的审核员来自 JWT 登录态。
+- 修复 Windows 环境下 Maven 未声明 UTF-8 编码导致中文状态常量可能编译异常的问题。
+
+### 完成工作
+
+- 后端：
+  - `ReviewSubmitRequest` 移除 `reviewerId` 字段。
+  - `ReviewController` 从请求属性 `currentUserId` 读取当前审核员 ID。
+  - `ReviewService` 写入复审日志时使用 JWT 中的审核员 ID。
+  - `ReviewLogResponse` 新增 `reviewerDisplayName`，复审日志可显示“审核员一号”等真实用户名。
+  - `VideoService` 和 `ReviewService` 返回复审日志时补充审核员展示名。
+  - `AiReviewResultResponse` 对历史 AI 风险等级做中文归一化，避免详情页继续显示 `SUSPICIOUS` 等旧值。
+  - `pom.xml` 增加 `project.build.sourceEncoding=UTF-8`，确保中文状态、角色、类别常量按 UTF-8 编译。
+- 前端：
+  - 复审提交不再发送 `reviewerId`。
+  - 复审日志表和视频详情页复审日志显示审核员展示名。
+  - JSON 请求头统一为 `application/json; charset=utf-8`。
+- 文档：
+  - 更新 `docs/api.md` 中复审提交请求体和复审日志响应。
+  - 更新 `docs/acceptance-test-guide.md` 中登录、上传、自动预审、复审验收步骤。
+  - 更新 `docs/database.md` 中中文状态、风险等级和角色说明。
+
+### 验证结果
+
+- `mvn clean -DskipTests package`：通过。
+- `npm run build`：通过。
+- 使用审核员 Token 提交复审时，请求体不传 `reviewerId`，提交成功。
+- 复审日志返回 `reviewerId=2` 和 `reviewerDisplayName=审核员一号`。
+- 验证后已将演示视频 `videoId=5` 复原为 `复审中`，保留为课堂演示待复审样例。
+- 发现通过 PowerShell 内联脚本直接写中文会变成 `???`，接口验证改用 Unicode 转义，避免误判。

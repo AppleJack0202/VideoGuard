@@ -70,7 +70,7 @@
 - `GET /api/review/tasks` 可返回待复审视频。
 - `POST /api/review/tasks/8/submit` 可提交人工复审。
 - `GET /api/review/logs/8` 可查询复审日志。
-- 视频 ID `8` 提交复审后状态更新为 `MANUAL_REJECTED`，最终结论为 `REJECT`，复审日志至少 1 条。
+- 视频提交复审后状态可更新为 `通过`、`驳回` 或 `待申诉`，复审日志至少 1 条。
 - `GET /api/statistics/overview` 可返回总视频数、今日上传、待复审、已人工复审、AI 通过率。
 - `GET /api/statistics/risk-distribution` 可返回风险等级分布。
 - `GET /api/statistics/status-distribution` 可返回处理状态分布。

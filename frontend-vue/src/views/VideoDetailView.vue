@@ -74,7 +74,9 @@
     <div v-if="canViewAuditEvidence" class="panel page">
       <h3>复审日志</h3>
       <el-table :data="video?.reviewLogs || []" border>
-        <el-table-column prop="reviewerId" label="审核员" width="100" />
+        <el-table-column prop="reviewerDisplayName" label="审核员" width="140">
+          <template #default="{ row }">{{ row.reviewerDisplayName || `用户#${row.reviewerId}` }}</template>
+        </el-table-column>
         <el-table-column prop="beforeStatus" label="原状态" width="140" />
         <el-table-column prop="afterStatus" label="新状态" width="150" />
         <el-table-column prop="afterResult" label="结论" width="100" />

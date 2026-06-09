@@ -136,7 +136,9 @@
       <div v-if="currentTask" class="panel page">
         <h3>复审日志</h3>
         <el-table :data="reviewLogs" border>
-          <el-table-column prop="reviewerId" label="审核员" width="100" />
+          <el-table-column prop="reviewerDisplayName" label="审核员" width="140">
+            <template #default="{ row }">{{ row.reviewerDisplayName || `用户#${row.reviewerId}` }}</template>
+          </el-table-column>
           <el-table-column prop="beforeStatus" label="原状态" width="140" />
           <el-table-column prop="afterStatus" label="新状态" width="150" />
           <el-table-column prop="afterResult" label="结论" width="100" />
@@ -222,7 +224,6 @@ async function handleSubmit() {
   submitting.value = true
   try {
     currentTask.value = await submitReview(currentTask.value.id, {
-      reviewerId: currentReviewerId(),
       status: form.finalResult,
       violationCategory: form.finalResult === '通过' ? null : form.violationCategory,
       comment: form.comment.trim()
@@ -235,11 +236,6 @@ async function handleSubmit() {
   } finally {
     submitting.value = false
   }
-}
-
-function currentReviewerId() {
-  const raw = localStorage.getItem('videoguard_user')
-  return raw ? JSON.parse(raw).id : 2
 }
 
 function formatDate(value) {

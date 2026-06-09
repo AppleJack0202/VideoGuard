@@ -1,4 +1,5 @@
 const API_BASE_URL = 'http://localhost:8081'
+const JSON_CONTENT_TYPE = 'application/json; charset=utf-8'
 
 async function request(path, options = {}) {
   const token = localStorage.getItem('videoguard_token')
@@ -84,7 +85,7 @@ export function submitReview(videoId, payload) {
   return request(`/api/review/tasks/${videoId}/submit`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': JSON_CONTENT_TYPE
     },
     body: JSON.stringify(payload)
   })
@@ -129,7 +130,7 @@ export function createSensitiveWord(payload) {
   return request('/api/sensitive-words', {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': JSON_CONTENT_TYPE
     },
     body: JSON.stringify(payload)
   })
@@ -139,7 +140,7 @@ export function updateSensitiveWord(id, payload) {
   return request(`/api/sensitive-words/${id}`, {
     method: 'PUT',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': JSON_CONTENT_TYPE
     },
     body: JSON.stringify(payload)
   })
@@ -155,7 +156,7 @@ export function login(payload) {
   return request('/api/auth/login', {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': JSON_CONTENT_TYPE
     },
     body: JSON.stringify(payload)
   })
@@ -165,7 +166,7 @@ export function register(payload) {
   return request('/api/auth/register', {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': JSON_CONTENT_TYPE
     },
     body: JSON.stringify(payload)
   })
@@ -184,7 +185,7 @@ export function updateUserRole(userId, role) {
   return request(`/api/users/${userId}/role`, {
     method: 'PUT',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': JSON_CONTENT_TYPE
     },
     body: JSON.stringify({ role })
   })

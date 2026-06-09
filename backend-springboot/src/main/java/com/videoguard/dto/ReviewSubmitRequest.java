@@ -1,12 +1,8 @@
 package com.videoguard.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 
 public class ReviewSubmitRequest {
-
-    @NotNull
-    private Long reviewerId;
 
     @NotBlank
     private String status;
@@ -15,14 +11,6 @@ public class ReviewSubmitRequest {
 
     @NotBlank
     private String comment;
-
-    public Long getReviewerId() {
-        return reviewerId;
-    }
-
-    public void setReviewerId(Long reviewerId) {
-        this.reviewerId = reviewerId;
-    }
 
     public String getStatus() {
         return status;

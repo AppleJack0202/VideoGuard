@@ -5,8 +5,10 @@ import com.videoguard.dto.ReviewSubmitRequest;
 import com.videoguard.dto.VideoDetailResponse;
 import com.videoguard.dto.VideoListItemResponse;
 import com.videoguard.entity.ReviewLog;
+import com.videoguard.entity.User;
 import com.videoguard.entity.Video;
 import com.videoguard.repository.ReviewLogRepository;
+import com.videoguard.repository.UserRepository;
 import com.videoguard.repository.VideoRepository;
 import jakarta.persistence.criteria.Predicate;
 import java.util.ArrayList;
@@ -22,14 +24,17 @@ public class ReviewService {
 
     private final VideoRepository videoRepository;
     private final ReviewLogRepository reviewLogRepository;
+    private final UserRepository userRepository;
     private final VideoService videoService;
 
     public ReviewService(
             VideoRepository videoRepository,
             ReviewLogRepository reviewLogRepository,
+            UserRepository userRepository,
             VideoService videoService) {
         this.videoRepository = videoRepository;
         this.reviewLogRepository = reviewLogRepository;
+        this.userRepository = userRepository;
         this.videoService = videoService;
     }
 
@@ -63,9 +68,12 @@ public class ReviewService {
     }
 
     @Transactional
-    public VideoDetailResponse submit(Long videoId, ReviewSubmitRequest request) {
+    public VideoDetailResponse submit(Long videoId, Long reviewerId, ReviewSubmitRequest request) {
         Video video = videoRepository.findById(videoId)
                 .orElseThrow(() -> new IllegalArgumentException("Video not found: " + videoId));
+        if (reviewerId == null) {
+            throw new IllegalArgumentException("Current reviewer is required.");
+        }
         if (!WorkflowConstants.STATUS_MANUAL_REVIEWING.equals(video.getStatus())) {
             throw new IllegalArgumentException("Review has already been submitted or the video is not in manual review.");
         }
@@ -88,7 +96,7 @@ public class ReviewService {
 
         ReviewLog log = new ReviewLog();
         log.setVideoId(videoId);
-        log.setReviewerId(request.getReviewerId());
+        log.setReviewerId(reviewerId);
         log.setBeforeStatus(beforeStatus);
         log.setAfterStatus(afterStatus);
         log.setBeforeResult(beforeResult);
@@ -103,8 +111,13 @@ public class ReviewService {
     public List<ReviewLogResponse> logs(Long videoId) {
         return reviewLogRepository.findByVideoIdOrderByCreatedAtDesc(videoId)
                 .stream()
-                .map(ReviewLogResponse::from)
+                .map(this::toReviewLogResponse)
                 .toList();
+    }
+
+    private ReviewLogResponse toReviewLogResponse(ReviewLog log) {
+        User reviewer = userRepository.findById(log.getReviewerId()).orElse(null);
+        return ReviewLogResponse.from(log, reviewer);
     }
 
     private String normalizeStatus(String status) {

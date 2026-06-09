@@ -185,8 +185,7 @@ Example:
 curl -X POST http://localhost:8081/api/videos/upload \
   -F "file=@D:/demo/normal.mp4" \
   -F "title=正常视频" \
-  -F "description=课程演示视频" \
-  -F "uploaderId=3"
+  -F "description=课程演示视频"
 ```
 
 ### GET /api/videos
@@ -207,7 +206,7 @@ Response:
     "title": "正常视频",
     "uploaderId": 3,
     "createdAt": "2026-06-08T20:00:00",
-    "status": "UPLOADED",
+    "status": "已上传",
     "aiRiskLevel": null,
     "aiRiskScore": 0.0,
     "fileSize": 123456,
@@ -235,7 +234,7 @@ Response:
   "width": null,
   "height": null,
   "fps": null,
-  "status": "UPLOADED",
+  "status": "已上传",
   "aiRiskLevel": null,
   "aiRiskScore": 0.0,
   "finalResult": null,
@@ -279,15 +278,15 @@ Response excerpt:
 ```json
 {
   "id": 1,
-  "status": "AI_SUSPICIOUS",
-  "aiRiskLevel": "SUSPICIOUS",
+  "status": "复审中",
+  "aiRiskLevel": "可疑",
   "aiRiskScore": 40.0,
   "aiResult": {
     "textScore": 40.0,
     "imageScore": 5.0,
     "asrScore": 0.0,
     "finalScore": 40.0,
-    "riskLevel": "SUSPICIOUS",
+    "riskLevel": "可疑",
     "asrText": ""
   },
   "frames": [
@@ -345,10 +344,9 @@ Submit request:
 
 ```json
 {
-  "reviewerId": 2,
   "status": "驳回",
   "violationCategory": "暴力",
-  "comment": "Reviewed manually."
+  "comment": "人工复审确认驳回。"
 }
 ```
 
@@ -360,7 +358,7 @@ status = 待申诉 -> finalResult = 可疑
 status = 驳回   -> finalResult = 违规
 ```
 
-The endpoint updates `video.status`, `video.final_result`, `video.violation_category`, `video.final_comment`, and appends one row to `review_log`. A video can be submitted only while its status is `复审中`.
+The endpoint reads the reviewer from JWT, updates `video.status`, `video.final_result`, `video.violation_category`, `video.final_comment`, and appends one row to `review_log`. A video can be submitted only while its status is `复审中`.
 
 ### GET /api/review/logs/{videoId}
 
@@ -374,11 +372,12 @@ Response:
     "id": 1,
     "videoId": 8,
     "reviewerId": 2,
-    "beforeStatus": "AI_PASSED",
-    "afterStatus": "MANUAL_REJECTED",
+    "reviewerDisplayName": "审核员一号",
+    "beforeStatus": "复审中",
+    "afterStatus": "驳回",
     "beforeResult": null,
-    "afterResult": "REJECT",
-    "comment": "Reviewed manually.",
+    "afterResult": "违规",
+    "comment": "人工复审确认驳回。",
     "createdAt": "2026-06-08T23:08:00"
   }
 ]
@@ -473,8 +472,8 @@ Response:
 
 ```json
 [
-  { "name": "PASS", "count": 4 },
-  { "name": "SUSPICIOUS", "count": 1 }
+  { "name": "正常", "count": 4 },
+  { "name": "可疑", "count": 1 }
 ]
 ```
 
@@ -484,9 +483,9 @@ Response:
 
 ```json
 [
-  { "name": "AI_PASSED", "count": 3 },
-  { "name": "AI_SUSPICIOUS", "count": 1 },
-  { "name": "MANUAL_REJECTED", "count": 1 }
+  { "name": "通过", "count": 3 },
+  { "name": "复审中", "count": 1 },
+  { "name": "驳回", "count": 1 }
 ]
 ```
 

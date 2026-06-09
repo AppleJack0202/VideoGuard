@@ -19,20 +19,26 @@ Core tables:
 Status values:
 
 ```text
-UPLOADED
-PROCESSING
-AI_PASSED
-AI_SUSPICIOUS
-AI_VIOLATION
-REVIEWED
-FAILED
+已上传
+预审中
+复审中
+待申诉
+通过
+驳回
 ```
 
 Risk levels:
 
 ```text
-PASS
-SUSPICIOUS
-VIOLATION
+正常
+可疑
+违规
 ```
 
+User roles:
+
+```text
+一般用户
+审核员
+管理员
+```

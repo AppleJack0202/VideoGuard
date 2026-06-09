@@ -13,12 +13,14 @@ import com.videoguard.dto.VideoUploadResponse;
 import com.videoguard.entity.AiReviewResult;
 import com.videoguard.entity.SensitiveHit;
 import com.videoguard.entity.SensitiveWord;
+import com.videoguard.entity.User;
 import com.videoguard.entity.Video;
 import com.videoguard.entity.VideoFrame;
 import com.videoguard.repository.AiReviewResultRepository;
 import com.videoguard.repository.ReviewLogRepository;
 import com.videoguard.repository.SensitiveHitRepository;
 import com.videoguard.repository.SensitiveWordRepository;
+import com.videoguard.repository.UserRepository;
 import com.videoguard.repository.VideoFrameRepository;
 import com.videoguard.repository.VideoRepository;
 import jakarta.persistence.criteria.Predicate;
@@ -53,6 +55,7 @@ public class VideoService {
     private final SensitiveHitRepository sensitiveHitRepository;
     private final AiReviewResultRepository aiReviewResultRepository;
     private final ReviewLogRepository reviewLogRepository;
+    private final UserRepository userRepository;
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
     private final Path uploadsRoot;
@@ -65,6 +68,7 @@ public class VideoService {
             SensitiveHitRepository sensitiveHitRepository,
             AiReviewResultRepository aiReviewResultRepository,
             ReviewLogRepository reviewLogRepository,
+            UserRepository userRepository,
             RestClient.Builder restClientBuilder,
             ObjectMapper objectMapper,
             @Value("${videoguard.uploads-dir:uploads}") String uploadsDir,
@@ -75,6 +79,7 @@ public class VideoService {
         this.sensitiveHitRepository = sensitiveHitRepository;
         this.aiReviewResultRepository = aiReviewResultRepository;
         this.reviewLogRepository = reviewLogRepository;
+        this.userRepository = userRepository;
         this.restClient = restClientBuilder.baseUrl(aiServiceBaseUrl).build();
         this.objectMapper = objectMapper;
         this.uploadsRoot = Path.of(uploadsDir).toAbsolutePath().normalize();
@@ -200,9 +205,14 @@ public class VideoService {
                 .orElse(null));
         response.setReviewLogs(reviewLogRepository.findByVideoIdOrderByCreatedAtDesc(id)
                 .stream()
-                .map(ReviewLogResponse::from)
+                .map(this::toReviewLogResponse)
                 .toList());
         return response;
+    }
+
+    private ReviewLogResponse toReviewLogResponse(com.videoguard.entity.ReviewLog log) {
+        User reviewer = userRepository.findById(log.getReviewerId()).orElse(null);
+        return ReviewLogResponse.from(log, reviewer);
     }
 
     @Transactional(readOnly = true)

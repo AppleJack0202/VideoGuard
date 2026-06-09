@@ -5,6 +5,7 @@ import com.videoguard.dto.ReviewSubmitRequest;
 import com.videoguard.dto.VideoDetailResponse;
 import com.videoguard.dto.VideoListItemResponse;
 import com.videoguard.service.ReviewService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -39,12 +40,23 @@ public class ReviewController {
     }
 
     @PostMapping("/tasks/{videoId}/submit")
-    public VideoDetailResponse submit(@PathVariable Long videoId, @Valid @RequestBody ReviewSubmitRequest request) {
-        return reviewService.submit(videoId, request);
+    public VideoDetailResponse submit(
+            HttpServletRequest servletRequest,
+            @PathVariable Long videoId,
+            @Valid @RequestBody ReviewSubmitRequest request) {
+        return reviewService.submit(videoId, currentUserId(servletRequest), request);
     }
 
     @GetMapping("/logs/{videoId}")
     public List<ReviewLogResponse> logs(@PathVariable Long videoId) {
         return reviewService.logs(videoId);
+    }
+
+    private Long currentUserId(HttpServletRequest request) {
+        Object value = request.getAttribute("currentUserId");
+        if (value instanceof Long id) {
+            return id;
+        }
+        throw new IllegalArgumentException("Current user is required.");
     }
 }
