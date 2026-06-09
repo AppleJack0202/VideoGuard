@@ -550,3 +550,67 @@
 1. 整理最终演示脚本。
 2. 准备课程报告材料：系统架构、数据库设计、核心代码说明、测试结果。
 3. 视时间补充更严格的角色权限控制。
+
+## 2026-06-09 项目完整验收测试
+
+### 本次目标
+
+- 查清 `8080` 端口占用来源。
+- 对当前 MVP 做一次完整业务闭环测试。
+- 判断项目功能是否已经达到课程演示要求。
+
+### 端口排查结果
+
+- 当前 `8080` 端口未被监听，已经空闲。
+- 之前占用 `8080` 的服务是 `NIApplicationWebServer`，显示名为 `NI Application Web Server`，属于 NI/Multisim 相关软件。
+- 当前服务状态：
+  - `NIApplicationWebServer`：Stopped，StartType 为 Automatic。
+  - `NIApplicationWebServer64`：Stopped，StartType 为 Disabled。
+  - `NISystemWebServer`：Running，但未占用 `8080`。
+- 尝试停止和禁用 `NIApplicationWebServer` 时被系统拒绝，原因是当前 PowerShell 没有管理员权限。
+
+### 完整测试结果
+
+- 健康检查通过：
+  - SpringBoot：`http://localhost:8081/api/health`
+  - FastAPI：`http://localhost:8000/ai/health`
+  - Vue：`http://localhost:5173/login`
+- 登录测试通过：
+  - `reviewer / 123456` 登录成功，返回角色 `REVIEWER`。
+- 敏感词管理测试通过：
+  - 新增临时敏感词 `codex_risk_20260609` 成功。
+  - 编辑权重成功。
+  - 删除临时敏感词成功。
+- 视频上传测试通过：
+  - 上传本地测试视频成功，生成 `videoId=10`。
+- AI 分析测试通过：
+  - 视频 `10` 分析后状态为 `AI_SUSPICIOUS`。
+  - 风险等级为 `SUSPICIOUS`。
+  - 风险分为 `50.0`。
+  - 抽取关键帧 `1` 张。
+  - 敏感词命中 `1` 条。
+- 人工复审测试通过：
+  - 视频 `10` 提交人工复审成功。
+  - 最终状态为 `MANUAL_REJECTED`。
+  - 复审日志数量为 `1`。
+- 统计接口测试通过：
+  - `GET /api/statistics/overview` 正常返回总视频数、今日上传、待复审、人工复审和 AI 通过率。
+- 前端页面测试通过：
+  - `/login`、`/dashboard`、`/upload`、`/videos`、`/review`、`/sensitive-words` 均返回 `200`。
+- 构建验证通过：
+  - `mvn -DskipTests package`：通过。
+  - `npm run build`：通过。
+
+### 当前结论
+
+- 当前 MVP 功能已经达到课程演示要求。
+- 已完成的核心链路为：
+
+```text
+登录 -> 敏感词管理 -> 视频上传 -> AI 分析 -> 人工复审 -> 统计看板
+```
+
+- 剩余工作主要是课程材料整理，不是核心功能开发：
+  - 最终演示脚本。
+  - 课程报告材料。
+  - 架构图、数据库设计图、核心代码说明。
