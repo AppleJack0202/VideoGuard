@@ -36,11 +36,21 @@ body {
 
 .topbar {
   display: flex;
+  justify-content: space-between;
   align-items: center;
   border-bottom: 1px solid #e5e7eb;
   background: #ffffff;
   font-size: 18px;
   font-weight: 600;
+}
+
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #4b5563;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .page {
@@ -81,6 +91,10 @@ body {
 
 .form-compact {
   max-width: 680px;
+}
+
+.login-panel {
+  max-width: 430px;
 }
 
 .toolbar {

@@ -1,6 +1,6 @@
 # VideoGuard 项目进展规划
 
-> 更新时间：2026-06-08  
+> 更新时间：2026-06-09
 > 用途：说明项目当前完成情况、正在进行的工作和后续计划
 
 ## 1. 已完成内容
@@ -35,9 +35,14 @@
   - 后端支持按 `category` 和 `enabled` 筛选敏感词。
   - 前端新增“敏感词管理”页面。
   - 页面支持新增、编辑、启用、停用、删除敏感词。
+- 已完成简化登录与角色展示第一版：
+  - 后端支持 `POST /api/auth/login` 和 `GET /api/auth/me`。
+  - 前端新增“登录”页面，可选择 `admin`、`reviewer`、`user` 三类演示账号。
+  - 顶部栏可展示当前登录用户和角色，并支持退出登录。
+  - 课程演示阶段暂不做复杂权限拦截，重点展示角色身份与业务流程。
 - 当前本机服务端口：
   - Vue：`http://localhost:5173`
-  - SpringBoot：`http://localhost:8080`
+  - SpringBoot：`http://localhost:8081`
   - FastAPI：`http://localhost:8000`
   - MySQL：`localhost:3306`
 
@@ -46,14 +51,14 @@
 当前阶段：
 
 ```text
-敏感词管理第一版已完成，下一阶段进入登录角色和演示材料整理
+登录与角色展示第一版已完成，下一阶段进入最终演示脚本和课程报告材料整理
 ```
 
 本阶段已验证：
 
 - `npm run build` 通过。
 - `mvn -DskipTests package` 通过。
-- `http://localhost:8080/api/health` 返回 `{"status":"ok"}`。
+- `http://localhost:8081/api/health` 返回 `{"status":"ok"}`。
 - `http://localhost:5173/review` 返回 200。
 - `GET /api/review/tasks` 可返回待复审视频。
 - `POST /api/review/tasks/8/submit` 可提交人工复审。
@@ -66,19 +71,22 @@
 - `GET /api/statistics/category-distribution` 可返回敏感类别分布。
 - `GET /api/sensitive-words` 可返回敏感词列表。
 - `POST /api/sensitive-words`、`PUT /api/sensitive-words/{id}`、`DELETE /api/sensitive-words/{id}` 已通过冒烟测试。
+- `POST /api/auth/login` 使用 `reviewer / 123456` 登录成功。
+- `GET /api/auth/me?userId=2` 可返回审核员角色信息。
+- `http://localhost:5173/login` 返回 200，登录页可访问。
 
 ## 3. 待完成任务
 
 优先级从高到低：
 
-1. 完成登录与角色
-   - 简化登录即可，课程演示重点不必做复杂权限。
-   - 区分普通用户、审核员、管理员。
-
-2. 完成测试、演示脚本和课程报告材料
+1. 完成测试、演示脚本和课程报告材料
    - 准备正常视频和风险视频。
    - 准备 5 分钟演示流程。
    - 整理数据库表设计、系统架构图、核心代码说明。
+
+2. 视时间完善权限控制
+   - 当前已完成角色展示。
+   - 后续如时间允许，可按角色限制敏感词管理、人工复审等页面入口。
 
 ## 4. 建议里程碑
 
@@ -89,5 +97,16 @@ M3 已完成：前端真实接口接入
 M4 已完成：人工复审第一版
 M5 已完成：统计看板真实数据第一版
 M6 已完成：敏感词管理第一版
-M7 下一步：登录、最终演示和报告材料
+M7 已完成：简化登录与角色展示第一版
+M8 下一步：最终演示脚本和课程报告材料
+```
+
+## 5. 2026-06-09 更新
+
+- 本日完成简化登录与角色展示第一版。
+- 本日确认 `8080` 被 NI Application Web Server 占用，普通权限无法停止，因此项目统一切换为 `8081` 运行 SpringBoot。
+- 当前可演示链路：
+
+```text
+登录选择角色 -> 敏感词配置 -> 视频上传 -> AI 分析 -> 人工复审 -> 统计看板
 ```

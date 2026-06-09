@@ -1,6 +1,6 @@
 # VideoGuard 交互验收指南
 
-> 更新时间：2026-06-08  
+> 更新时间：2026-06-09
 > 用途：说明如何启动项目、检查服务、通过页面和接口验证功能
 
 ## 1. 启动前检查
@@ -59,7 +59,7 @@ http://localhost:5173
 ## 3. 健康检查
 
 ```text
-http://localhost:8080/api/health
+http://localhost:8081/api/health
 http://localhost:8000/ai/health
 http://localhost:5173
 ```
@@ -75,16 +75,36 @@ Vue 能打开页面
 当前已验证的服务地址：
 
 ```text
-http://localhost:8080/api/health -> 200
+http://localhost:8081/api/health -> 200
 http://localhost:8000/ai/health -> 200
 http://localhost:5173/videos/5 -> 200
 http://localhost:5173/review -> 200
 http://localhost:5173/dashboard -> 200
+http://localhost:5173/login -> 200
 ```
 
 ## 4. 页面交互验收流程
 
-### 4.1 上传与 AI 分析
+### 4.1 登录与角色展示
+
+1. 打开 `http://localhost:5173/login`。
+2. 用户名选择 `reviewer`，密码填写 `123456`。
+3. 点击“登录”。
+4. 登录成功后应进入“统计看板”。
+5. 顶部栏应显示当前用户名 `reviewer` 和角色 `REVIEWER`。
+6. 点击“退出”后应回到登录页。
+
+可用于演示的账号：
+
+```text
+admin    -> ADMIN
+reviewer -> REVIEWER
+user     -> USER
+```
+
+说明：当前是课程演示阶段，种子用户密码为占位值，任意非空密码均可登录。
+
+### 4.2 上传与 AI 分析
 
 1. 打开 `http://localhost:5173`。
 2. 进入“视频上传”页面。
@@ -97,7 +117,7 @@ http://localhost:5173/dashboard -> 200
 9. 分析完成后进入视频详情页。
 10. 检查详情页是否展示视频播放器、处理状态、AI 风险等级、风险分、AI 分析结果、敏感词命中、视频关键帧。
 
-### 4.2 视频管理
+### 4.3 视频管理
 
 1. 进入“视频管理”页面。
 2. 检查列表中是否出现刚上传的视频。
@@ -105,7 +125,7 @@ http://localhost:5173/dashboard -> 200
 4. 点击“详情”进入视频详情页。
 5. 点击“分析”可重新触发 AI 分析。
 
-### 4.3 人工复审
+### 4.4 人工复审
 
 1. 进入“人工复审”页面。
 2. 左侧待复审任务列表应显示 `AI_SUSPICIOUS` 或 `AI_VIOLATION` 视频。
@@ -117,7 +137,7 @@ http://localhost:5173/dashboard -> 200
 8. 检查复审日志表是否新增记录。
 9. 回到视频详情页，检查最终结论和复审日志。
 
-### 4.4 统计看板
+### 4.5 统计看板
 
 1. 进入“统计看板”页面。
 2. 检查顶部指标是否显示真实数字：
@@ -133,7 +153,7 @@ http://localhost:5173/dashboard -> 200
    - 敏感类别分布
 4. 上传、AI 分析或提交复审后，刷新统计看板，观察指标变化。
 
-### 4.5 敏感词管理
+### 4.6 敏感词管理
 
 1. 进入“敏感词管理”页面。
 2. 检查表格中是否显示现有敏感词。
@@ -148,94 +168,102 @@ http://localhost:5173/dashboard -> 200
 健康检查：
 
 ```powershell
-Invoke-RestMethod http://localhost:8080/api/health
+Invoke-RestMethod http://localhost:8081/api/health
 Invoke-RestMethod http://localhost:8000/ai/health
+```
+
+登录检查：
+
+```powershell
+$body = @{ username = "reviewer"; password = "123456" } | ConvertTo-Json
+Invoke-RestMethod -Method Post http://localhost:8081/api/auth/login -ContentType "application/json; charset=utf-8" -Body $body
+Invoke-RestMethod "http://localhost:8081/api/auth/me?userId=2"
 ```
 
 查看视频列表：
 
 ```powershell
-Invoke-RestMethod http://localhost:8080/api/videos
+Invoke-RestMethod http://localhost:8081/api/videos
 ```
 
 查看某个视频详情：
 
 ```powershell
-Invoke-RestMethod http://localhost:8080/api/videos/5
+Invoke-RestMethod http://localhost:8081/api/videos/5
 ```
 
 触发 AI 分析：
 
 ```powershell
-Invoke-RestMethod -Method Post http://localhost:8080/api/videos/5/analyze
+Invoke-RestMethod -Method Post http://localhost:8081/api/videos/5/analyze
 ```
 
 查看待复审任务：
 
 ```powershell
-Invoke-RestMethod http://localhost:8080/api/review/tasks
+Invoke-RestMethod http://localhost:8081/api/review/tasks
 ```
 
 提交人工复审：
 
 ```powershell
 $body = @{ reviewerId = 2; finalResult = "REJECT"; comment = "人工复审确认驳回。" } | ConvertTo-Json
-Invoke-RestMethod -Method Post http://localhost:8080/api/review/tasks/8/submit -ContentType "application/json; charset=utf-8" -Body $body
+Invoke-RestMethod -Method Post http://localhost:8081/api/review/tasks/8/submit -ContentType "application/json; charset=utf-8" -Body $body
 ```
 
 查看复审日志：
 
 ```powershell
-Invoke-RestMethod http://localhost:8080/api/review/logs/8
+Invoke-RestMethod http://localhost:8081/api/review/logs/8
 ```
 
 查看统计概览：
 
 ```powershell
-Invoke-RestMethod http://localhost:8080/api/statistics/overview
+Invoke-RestMethod http://localhost:8081/api/statistics/overview
 ```
 
 查看风险等级分布：
 
 ```powershell
-Invoke-RestMethod http://localhost:8080/api/statistics/risk-distribution
+Invoke-RestMethod http://localhost:8081/api/statistics/risk-distribution
 ```
 
 查看每日上传趋势：
 
 ```powershell
-Invoke-RestMethod "http://localhost:8080/api/statistics/daily-upload?days=7"
+Invoke-RestMethod "http://localhost:8081/api/statistics/daily-upload?days=7"
 ```
 
 查看处理状态分布：
 
 ```powershell
-Invoke-RestMethod http://localhost:8080/api/statistics/status-distribution
+Invoke-RestMethod http://localhost:8081/api/statistics/status-distribution
 ```
 
 查看敏感类别分布：
 
 ```powershell
-Invoke-RestMethod http://localhost:8080/api/statistics/category-distribution
+Invoke-RestMethod http://localhost:8081/api/statistics/category-distribution
 ```
 
 查看敏感词列表：
 
 ```powershell
-Invoke-RestMethod http://localhost:8080/api/sensitive-words
+Invoke-RestMethod http://localhost:8081/api/sensitive-words
 ```
 
 新增敏感词：
 
 ```powershell
 $body = @{ word = "测试词"; category = "custom"; weight = 20; enabled = 1 } | ConvertTo-Json
-Invoke-RestMethod -Method Post http://localhost:8080/api/sensitive-words -ContentType "application/json; charset=utf-8" -Body $body
+Invoke-RestMethod -Method Post http://localhost:8081/api/sensitive-words -ContentType "application/json; charset=utf-8" -Body $body
 ```
 
 检查关键帧静态资源：
 
 ```powershell
-Invoke-WebRequest http://localhost:8080/uploads/frames/5/frame_0000.jpg
+Invoke-WebRequest http://localhost:8081/uploads/frames/5/frame_0000.jpg
 ```
 
 ## 6. 预期验收结果
@@ -301,6 +329,8 @@ categoryDistribution 包含 violence
 Get-NetTCPConnection -LocalPort 8080
 Stop-Process -Id 占用端口的进程ID -Force
 ```
+
+当前本机 `8080` 被 NI Application Web Server 占用且普通权限无法停止，因此本项目已切换为 `8081`。
 
 2. MySQL 连不上
 

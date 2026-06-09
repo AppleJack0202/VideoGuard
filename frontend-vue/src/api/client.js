@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:8080'
+const API_BASE_URL = 'http://localhost:8081'
 
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, options)
@@ -138,4 +138,19 @@ export function deleteSensitiveWord(id) {
   return request(`/api/sensitive-words/${id}`, {
     method: 'DELETE'
   })
+}
+
+export function login(payload) {
+  return request('/api/auth/login', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  })
+}
+
+export function fetchCurrentUser(userId) {
+  const query = userId ? `?userId=${userId}` : ''
+  return request(`/api/auth/me${query}`)
 }

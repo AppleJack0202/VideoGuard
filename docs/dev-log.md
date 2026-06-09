@@ -484,3 +484,69 @@
 
 - 实现简化登录与角色展示。
 - 整理最终演示脚本和课程报告材料。
+
+## 2026-06-09 简化登录与角色展示第一版完成
+
+### 本次目标
+
+- 完成课程演示所需的简化登录功能。
+- 在前端显示当前登录用户和角色。
+- 确认三端服务端口和运行状态，处理本机 `8080` 端口占用问题。
+- 同步更新 API 文档、项目进展规划和交互验收指南。
+
+### 完成工作
+
+- 后端新增用户登录相关代码：
+  - `User` 实体，对应数据库 `user` 表。
+  - `UserRepository`，支持按用户名查询。
+  - `LoginRequest`、`UserResponse` 两个 DTO。
+  - `AuthService`，支持演示阶段的简化登录逻辑。
+  - `AuthController`，提供 `POST /api/auth/login` 和 `GET /api/auth/me`。
+- 前端新增和完善登录交互：
+  - 登录页支持选择 `admin`、`reviewer`、`user` 三类演示账号。
+  - 登录成功后将用户信息保存到 `localStorage`。
+  - 顶部栏展示当前用户名和角色。
+  - 支持退出登录并返回登录页。
+- 端口调整：
+  - 本机 `8080` 被 NI Application Web Server 占用，普通权限无法停止。
+  - SpringBoot 已统一切换到 `8081`。
+  - 前端 API 基础地址同步改为 `http://localhost:8081`。
+- 文档维护：
+  - `docs/api.md` 补充登录接口说明。
+  - `docs/project-progress.md` 更新当前进展和下一步任务。
+  - `docs/acceptance-test-guide.md` 补充登录验收流程和接口命令。
+
+### 验证结果
+
+- `mvn -DskipTests package`：通过。
+- `npm run build`：通过。
+- `http://localhost:8081/api/health` 返回 `{"status":"ok"}`。
+- `POST /api/auth/login` 使用 `reviewer / 123456` 登录成功，返回角色 `REVIEWER`。
+- `GET /api/auth/me?userId=2` 返回审核员用户信息。
+- `http://localhost:5173/login` 返回 `200`。
+- `GET /api/statistics/overview` 可正常返回统计数据。
+
+### 遇到的问题与处理
+
+1. `8080` 端口被占用
+   - 问题：`8080` 被 `NI Application Web Server` 占用。
+   - 处理：尝试停止服务时权限不足，因此将 SpringBoot 改为 `8081`，并同步更新前端和文档中的接口地址。
+
+2. PowerShell 中文显示乱码
+   - 问题：PowerShell 读取 UTF-8 中文文件时显示为乱码。
+   - 处理：使用 Node 按 UTF-8 读取文件确认内容正常，避免误判文件损坏。
+
+### 当前项目状态
+
+- 登录与角色展示第一版已完成。
+- 当前可演示主链路：
+
+```text
+登录选择角色 -> 敏感词配置 -> 视频上传 -> AI 分析 -> 人工复审 -> 统计看板
+```
+
+### 下一步计划
+
+1. 整理最终演示脚本。
+2. 准备课程报告材料：系统架构、数据库设计、核心代码说明、测试结果。
+3. 视时间补充更严格的角色权限控制。

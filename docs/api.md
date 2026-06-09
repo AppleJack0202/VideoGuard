@@ -3,7 +3,7 @@
 Base URLs:
 
 ```text
-SpringBoot: http://localhost:8080
+SpringBoot: http://localhost:8081
 FastAPI:    http://localhost:8000
 ```
 
@@ -33,10 +33,9 @@ Response:
 
 ## Auth
 
-Planned:
+Implemented:
 
 ```text
-POST /api/auth/register
 POST /api/auth/login
 GET  /api/auth/me
 ```
@@ -47,6 +46,44 @@ Roles:
 USER
 REVIEWER
 ADMIN
+```
+
+### POST /api/auth/login
+
+Request:
+
+```json
+{
+  "username": "reviewer",
+  "password": "123456"
+}
+```
+
+Demo rule: current seed users use `CHANGE_ME_HASH` as a placeholder password hash, so any non-empty password is accepted for classroom demonstration.
+
+Response:
+
+```json
+{
+  "id": 2,
+  "username": "reviewer",
+  "role": "REVIEWER",
+  "createdAt": "2026-06-08T21:16:38"
+}
+```
+
+### GET /api/auth/me
+
+Query parameters:
+
+```text
+userId: optional, defaults to 1
+```
+
+Example:
+
+```bash
+curl "http://localhost:8081/api/auth/me?userId=2"
 ```
 
 ## Videos
@@ -87,7 +124,7 @@ Response:
 Example:
 
 ```bash
-curl -X POST http://localhost:8080/api/videos/upload \
+curl -X POST http://localhost:8081/api/videos/upload \
   -F "file=@D:/demo/normal.mp4" \
   -F "title=正常视频" \
   -F "description=课程演示视频" \
@@ -176,7 +213,7 @@ Response: same shape as `GET /api/videos/{id}`, with populated `aiResult`, `fram
 Example:
 
 ```bash
-curl -X POST http://localhost:8080/api/videos/1/analyze
+curl -X POST http://localhost:8081/api/videos/1/analyze
 ```
 
 Response excerpt:

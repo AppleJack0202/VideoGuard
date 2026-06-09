@@ -45,7 +45,7 @@ VideoGuard/
 
 ```text
 Vue:        http://localhost:5173
-SpringBoot: http://localhost:8080
+SpringBoot: http://localhost:8081
 FastAPI:    http://localhost:8000
 MySQL:      localhost:3306
 ```
@@ -114,7 +114,7 @@ mvn spring-boot:run
 Health check:
 
 ```bash
-curl http://localhost:8080/api/health
+curl http://localhost:8081/api/health
 ```
 
 ### 4. Vue

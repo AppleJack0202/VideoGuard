@@ -17,6 +17,14 @@
     <el-container>
       <el-header class="topbar">
         <span>{{ routeTitle }}</span>
+        <div class="user-chip">
+          <template v-if="currentUser">
+            <span>{{ currentUser.username }}</span>
+            <el-tag size="small">{{ currentUser.role }}</el-tag>
+            <el-button size="small" text @click="logout">退出</el-button>
+          </template>
+          <el-button v-else size="small" @click="router.push('/login')">登录</el-button>
+        </div>
       </el-header>
       <el-main>
         <router-view />
@@ -26,10 +34,32 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 const route = useRoute()
+const router = useRouter()
+const currentUser = ref(null)
 
 const routeTitle = computed(() => route.meta.title || 'VideoGuard')
+
+function loadUser() {
+  const raw = localStorage.getItem('videoguard_user')
+  currentUser.value = raw ? JSON.parse(raw) : null
+}
+
+function logout() {
+  localStorage.removeItem('videoguard_user')
+  loadUser()
+  router.push('/login')
+}
+
+onMounted(() => {
+  loadUser()
+  window.addEventListener('videoguard:user-updated', loadUser)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('videoguard:user-updated', loadUser)
+})
 </script>
