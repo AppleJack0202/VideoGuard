@@ -96,6 +96,7 @@ Response:
 {
   "id": 2,
   "username": "reviewer",
+  "displayName": "审核员一号",
   "role": "审核员",
   "token": "jwt-token",
   "createdAt": "2026-06-08T21:16:38"
@@ -105,6 +106,18 @@ Response:
 ### POST /api/auth/register
 
 New users are created as `一般用户`.
+
+Request:
+
+```json
+{
+  "username": "student001",
+  "displayName": "李华",
+  "password": "123456"
+}
+```
+
+`username` is the login account. `displayName` is the name displayed in the top bar and user list. If `displayName` is empty, the backend falls back to `username`.
 
 ### PUT /api/users/{id}/role
 

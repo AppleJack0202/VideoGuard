@@ -1,5 +1,32 @@
 SET NAMES utf8mb4;
 
+SET @has_display_name = (
+  SELECT COUNT(*)
+  FROM information_schema.columns
+  WHERE table_schema = DATABASE()
+    AND table_name = 'user'
+    AND column_name = 'display_name'
+);
+SET @alter_user_display_sql = IF(
+  @has_display_name = 0,
+  'ALTER TABLE `user` ADD COLUMN display_name VARCHAR(64) NULL AFTER username',
+  'DO 1'
+);
+PREPARE alter_user_display_stmt FROM @alter_user_display_sql;
+EXECUTE alter_user_display_stmt;
+DEALLOCATE PREPARE alter_user_display_stmt;
+
+UPDATE `user`
+SET display_name = CASE username
+  WHEN 'admin' THEN '系统管理员'
+  WHEN 'reviewer' THEN '审核员一号'
+  WHEN 'user' THEN '普通用户一号'
+  ELSE username
+END
+WHERE display_name IS NULL OR display_name = '';
+
+ALTER TABLE `user` MODIFY COLUMN display_name VARCHAR(64) NOT NULL;
+
 SET @has_violation_category = (
   SELECT COUNT(*)
   FROM information_schema.columns

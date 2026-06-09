@@ -8,6 +8,7 @@ public class UserResponse {
 
     private Long id;
     private String username;
+    private String displayName;
     private String role;
     private String token;
     private LocalDateTime createdAt;
@@ -16,6 +17,7 @@ public class UserResponse {
         UserResponse response = new UserResponse();
         response.setId(user.getId());
         response.setUsername(user.getUsername());
+        response.setDisplayName(user.getDisplayName() == null ? user.getUsername() : user.getDisplayName());
         response.setRole(WorkflowConstants.normalizeRole(user.getRole()));
         response.setCreatedAt(user.getCreatedAt());
         return response;
@@ -35,6 +37,14 @@ public class UserResponse {
 
     public void setUsername(String username) {
         this.username = username;
+    }
+
+    public String getDisplayName() {
+        return displayName;
+    }
+
+    public void setDisplayName(String displayName) {
+        this.displayName = displayName;
     }
 
     public String getRole() {

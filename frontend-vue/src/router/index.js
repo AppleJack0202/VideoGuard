@@ -60,6 +60,7 @@ function normalizeUser(user) {
   }
   return {
     ...user,
+    displayName: user.displayName || user.username,
     role: roleMap[user.role] || user.role
   }
 }

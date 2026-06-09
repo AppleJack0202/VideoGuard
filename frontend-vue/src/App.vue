@@ -15,7 +15,7 @@
         <span>{{ routeTitle }}</span>
         <div class="user-chip">
           <template v-if="currentUser">
-            <span>{{ currentUser.username }}</span>
+            <span>{{ currentUser.displayName || currentUser.username }}</span>
             <el-tag size="small">{{ currentUser.role }}</el-tag>
             <el-button size="small" text @click="logout">退出</el-button>
           </template>
@@ -84,6 +84,7 @@ function normalizeUser(user) {
   }
   return {
     ...user,
+    displayName: user.displayName || user.username,
     role: roleMap[user.role] || user.role
   }
 }

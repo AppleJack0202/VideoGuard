@@ -1,10 +1,10 @@
 SET NAMES utf8mb4;
 
-INSERT IGNORE INTO `user` (username, password_hash, role)
+INSERT IGNORE INTO `user` (username, display_name, password_hash, role)
 VALUES
-  ('admin', 'CHANGE_ME_HASH', '管理员'),
-  ('reviewer', 'CHANGE_ME_HASH', '审核员'),
-  ('user', 'CHANGE_ME_HASH', '一般用户');
+  ('admin', '系统管理员', 'CHANGE_ME_HASH', '管理员'),
+  ('reviewer', '审核员一号', 'CHANGE_ME_HASH', '审核员'),
+  ('user', '普通用户一号', 'CHANGE_ME_HASH', '一般用户');
 
 INSERT INTO sensitive_word (word, category, weight, enabled)
 VALUES

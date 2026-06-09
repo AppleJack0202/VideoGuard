@@ -97,6 +97,12 @@ body {
   max-width: 430px;
 }
 
+.demo-account-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;

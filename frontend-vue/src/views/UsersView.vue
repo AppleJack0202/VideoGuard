@@ -6,7 +6,10 @@
 
     <el-table :data="users" v-loading="loading" border>
       <el-table-column prop="id" label="ID" width="80" />
-      <el-table-column prop="username" label="用户名" min-width="160" />
+      <el-table-column prop="displayName" label="用户名" min-width="150">
+        <template #default="{ row }">{{ row.displayName || row.username }}</template>
+      </el-table-column>
+      <el-table-column prop="username" label="登录账号" min-width="140" />
       <el-table-column prop="role" label="角色" width="180">
         <template #default="{ row }">
           <el-select v-model="row.role" @change="(role) => changeRole(row, role)">

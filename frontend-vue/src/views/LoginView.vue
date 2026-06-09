@@ -5,16 +5,21 @@
       <el-tab-pane label="注册" name="register" />
     </el-tabs>
     <el-form :model="form" label-width="72px">
-      <el-form-item label="用户名">
-        <el-select v-if="mode === 'login'" v-model="form.username" filterable>
-          <el-option label="admin" value="admin" />
-          <el-option label="reviewer" value="reviewer" />
-          <el-option label="user" value="user" />
-        </el-select>
-        <el-input v-else v-model="form.username" placeholder="请输入新用户名" />
+      <el-form-item label="登录账号">
+        <el-input v-model="form.username" placeholder="请输入登录账号" />
+      </el-form-item>
+      <el-form-item v-if="mode === 'register'" label="用户名">
+        <el-input v-model="form.displayName" placeholder="请输入页面显示的用户名" />
       </el-form-item>
       <el-form-item label="密码">
         <el-input v-model="form.password" type="password" placeholder="请输入密码" show-password />
+      </el-form-item>
+      <el-form-item v-if="mode === 'login'" label="演示账号">
+        <div class="demo-account-list">
+          <el-button size="small" @click="useDemoAccount('admin')">系统管理员</el-button>
+          <el-button size="small" @click="useDemoAccount('reviewer')">审核员一号</el-button>
+          <el-button size="small" @click="useDemoAccount('user')">普通用户一号</el-button>
+        </div>
       </el-form-item>
       <el-form-item>
         <el-button type="primary" :loading="loading" @click="submitAuth">{{ mode === 'login' ? '登录' : '注册' }}</el-button>
@@ -34,26 +39,31 @@ const mode = ref('login')
 const loading = ref(false)
 const form = reactive({
   username: 'reviewer',
+  displayName: '',
   password: '123456'
 })
 
 async function submitAuth() {
   if (!form.username || !form.password.trim()) {
-    ElMessage.warning('请输入用户名和密码')
+    ElMessage.warning('请输入登录账号和密码')
     return
   }
 
   loading.value = true
   try {
     const action = mode.value === 'login' ? login : register
-    const user = await action({
+    const payload = {
       username: form.username,
       password: form.password.trim()
-    })
+    }
+    if (mode.value === 'register') {
+      payload.displayName = form.displayName
+    }
+    const user = await action(payload)
     localStorage.setItem('videoguard_user', JSON.stringify(user))
     localStorage.setItem('videoguard_token', user.token)
     window.dispatchEvent(new Event('videoguard:user-updated'))
-    ElMessage.success(`${mode.value === 'login' ? '已登录' : '注册成功'}：${user.username}`)
+    ElMessage.success(`${mode.value === 'login' ? '已登录' : '注册成功'}：${user.displayName || user.username}`)
     router.push(defaultRoute(user.role))
   } catch (error) {
     ElMessage.error(error.message)
@@ -70,5 +80,10 @@ function defaultRoute(role) {
     return '/review'
   }
   return '/dashboard'
+}
+
+function useDemoAccount(username) {
+  form.username = username
+  form.password = '123456'
 }
 </script>

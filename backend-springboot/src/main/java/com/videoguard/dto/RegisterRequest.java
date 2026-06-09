@@ -7,6 +7,8 @@ public class RegisterRequest {
     @NotBlank
     private String username;
 
+    private String displayName;
+
     @NotBlank
     private String password;
 
@@ -16,6 +18,14 @@ public class RegisterRequest {
 
     public void setUsername(String username) {
         this.username = username;
+    }
+
+    public String getDisplayName() {
+        return displayName;
+    }
+
+    public void setDisplayName(String displayName) {
+        this.displayName = displayName;
     }
 
     public String getPassword() {

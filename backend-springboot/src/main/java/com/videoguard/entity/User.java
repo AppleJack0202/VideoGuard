@@ -19,6 +19,9 @@ public class User {
     @Column(nullable = false, unique = true)
     private String username;
 
+    @Column(name = "display_name", nullable = false)
+    private String displayName;
+
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
@@ -45,6 +48,14 @@ public class User {
 
     public void setUsername(String username) {
         this.username = username;
+    }
+
+    public String getDisplayName() {
+        return displayName;
+    }
+
+    public void setDisplayName(String displayName) {
+        this.displayName = displayName;
     }
 
     public String getPasswordHash() {

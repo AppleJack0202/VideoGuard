@@ -43,6 +43,7 @@ public class AuthService {
     @Transactional
     public UserResponse register(RegisterRequest request) {
         String username = request.getUsername() == null ? "" : request.getUsername().trim();
+        String displayName = request.getDisplayName() == null ? "" : request.getDisplayName().trim();
         String password = request.getPassword() == null ? "" : request.getPassword().trim();
         if (!StringUtils.hasText(username) || !StringUtils.hasText(password)) {
             throw new IllegalArgumentException("Username and password are required.");
@@ -53,6 +54,7 @@ public class AuthService {
 
         User user = new User();
         user.setUsername(username);
+        user.setDisplayName(StringUtils.hasText(displayName) ? displayName : username);
         user.setPasswordHash(password);
         user.setRole(WorkflowConstants.ROLE_USER);
         return withToken(userRepository.save(user));
