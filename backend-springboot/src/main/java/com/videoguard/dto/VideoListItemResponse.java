@@ -12,6 +12,7 @@ public class VideoListItemResponse {
     private String status;
     private String aiRiskLevel;
     private Double aiRiskScore;
+    private String violationCategory;
     private Long fileSize;
     private Double duration;
 
@@ -24,6 +25,7 @@ public class VideoListItemResponse {
         response.setStatus(video.getStatus());
         response.setAiRiskLevel(video.getAiRiskLevel());
         response.setAiRiskScore(video.getAiRiskScore());
+        response.setViolationCategory(video.getViolationCategory());
         response.setFileSize(video.getFileSize());
         response.setDuration(video.getDuration());
         return response;
@@ -85,6 +87,14 @@ public class VideoListItemResponse {
         this.aiRiskScore = aiRiskScore;
     }
 
+    public String getViolationCategory() {
+        return violationCategory;
+    }
+
+    public void setViolationCategory(String violationCategory) {
+        this.violationCategory = violationCategory;
+    }
+
     public Long getFileSize() {
         return fileSize;
     }
@@ -101,4 +111,3 @@ public class VideoListItemResponse {
         this.duration = duration;
     }
 }
-

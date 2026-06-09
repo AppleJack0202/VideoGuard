@@ -1,9 +1,11 @@
 package com.videoguard.controller;
 
 import com.videoguard.dto.LoginRequest;
+import com.videoguard.dto.RegisterRequest;
 import com.videoguard.dto.UserResponse;
 import com.videoguard.service.AuthService;
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -26,8 +28,17 @@ public class AuthController {
         return authService.login(request);
     }
 
+    @PostMapping("/register")
+    public UserResponse register(@Valid @RequestBody RegisterRequest request) {
+        return authService.register(request);
+    }
+
     @GetMapping("/me")
-    public UserResponse me(@RequestParam(value = "userId", required = false) Long userId) {
+    public UserResponse me(HttpServletRequest request, @RequestParam(value = "userId", required = false) Long userId) {
+        Object currentUserId = request.getAttribute("currentUserId");
+        if (currentUserId instanceof Long id) {
+            return authService.me(id);
+        }
         return authService.me(userId);
     }
 }

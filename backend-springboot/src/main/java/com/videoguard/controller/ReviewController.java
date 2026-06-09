@@ -28,8 +28,9 @@ public class ReviewController {
     @GetMapping("/tasks")
     public List<VideoListItemResponse> tasks(
             @RequestParam(value = "status", required = false) String status,
-            @RequestParam(value = "aiRiskLevel", required = false) String aiRiskLevel) {
-        return reviewService.tasks(status, aiRiskLevel);
+            @RequestParam(value = "aiRiskLevel", required = false) String aiRiskLevel,
+            @RequestParam(value = "violationCategory", required = false) String violationCategory) {
+        return reviewService.tasks(status, aiRiskLevel, violationCategory);
     }
 
     @GetMapping("/tasks/{videoId}")

@@ -21,7 +21,7 @@
         <div ref="statusChartRef" class="chart-box" />
       </div>
       <div class="panel">
-        <h3>敏感类别分布</h3>
+        <h3>违规类别分布</h3>
         <div ref="categoryChartRef" class="chart-box" />
       </div>
     </section>
@@ -59,8 +59,8 @@ const metrics = computed(() => [
   { label: '总视频数', value: overview.value.totalVideos ?? 0 },
   { label: '今日上传', value: overview.value.todayUploads ?? 0 },
   { label: 'AI 通过率', value: `${overview.value.aiPassRate ?? 0}%` },
-  { label: '待复审', value: overview.value.pendingReviews ?? 0 },
-  { label: '已人工复审', value: overview.value.manualReviewed ?? 0 }
+  { label: '复审中', value: overview.value.pendingReviews ?? 0 },
+  { label: '已完成审核', value: overview.value.manualReviewed ?? 0 }
 ])
 
 async function loadDashboard() {
@@ -79,7 +79,7 @@ async function loadDashboard() {
     renderPie(riskChartRef.value, riskData, '风险等级')
     renderLine(dailyChartRef.value, dailyData)
     renderBar(statusChartRef.value, statusData, '视频数量')
-    renderBar(categoryChartRef.value, categoryData, '命中次数')
+    renderBar(categoryChartRef.value, categoryData, '视频数量')
   } catch (error) {
     ElMessage.error(error.message)
   } finally {

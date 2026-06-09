@@ -7,9 +7,6 @@
       <el-form-item label="描述">
         <el-input v-model="form.description" type="textarea" :rows="4" placeholder="请输入视频描述" />
       </el-form-item>
-      <el-form-item label="上传人 ID">
-        <el-input-number v-model="form.uploaderId" :min="1" />
-      </el-form-item>
       <el-form-item label="视频文件">
         <el-upload
           drag
@@ -25,7 +22,6 @@
       </el-form-item>
       <el-form-item>
         <el-button type="primary" :loading="uploading" @click="submitUpload">上传视频</el-button>
-        <el-button :disabled="!uploadedVideo" :loading="analyzing" @click="startAnalyze">开始 AI 分析</el-button>
         <el-button v-if="uploadedVideo" @click="openDetail">查看详情</el-button>
       </el-form-item>
     </el-form>
@@ -37,20 +33,18 @@ import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { UploadFilled } from '@element-plus/icons-vue'
-import { analyzeVideo, uploadVideo } from '../api/client'
+import { uploadVideo } from '../api/client'
 
 const router = useRouter()
 
 const form = reactive({
   title: '',
-  description: '',
-  uploaderId: 1
+  description: ''
 })
 
 const selectedFile = ref(null)
 const uploadedVideo = ref(null)
 const uploading = ref(false)
-const analyzing = ref(false)
 
 function currentVideoId() {
   return uploadedVideo.value?.videoId
@@ -82,32 +76,13 @@ async function submitUpload() {
     uploadedVideo.value = await uploadVideo({
       file: selectedFile.value,
       title: form.title.trim(),
-      description: form.description,
-      uploaderId: form.uploaderId
+      description: form.description
     })
-    ElMessage.success('上传成功')
+    ElMessage.success('上传成功，后台将自动进行 AI 预审')
   } catch (error) {
     ElMessage.error(error.message)
   } finally {
     uploading.value = false
-  }
-}
-
-async function startAnalyze() {
-  const videoId = currentVideoId()
-  if (!videoId) {
-    return
-  }
-
-  analyzing.value = true
-  try {
-    await analyzeVideo(videoId)
-    ElMessage.success('AI 分析完成')
-    router.push(`/videos/${videoId}`)
-  } catch (error) {
-    ElMessage.error(error.message)
-  } finally {
-    analyzing.value = false
   }
 }
 

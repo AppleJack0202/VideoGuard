@@ -9,6 +9,32 @@ FastAPI:    http://localhost:8000
 
 Frontend calls SpringBoot only. SpringBoot calls FastAPI.
 
+## 2026-06-09 Updated Business Rules
+
+The improved version uses Chinese business values:
+
+```text
+status: 已上传, 预审中, 复审中, 待申诉, 通过, 驳回
+aiRiskLevel: 正常, 可疑, 违规
+violationCategory: 暴力, 色情, 政治敏感
+finalResult: 正常, 可疑, 违规
+roles: 一般用户, 审核员, 管理员
+```
+
+Except `/api/health`, `/api/auth/login`, and `/api/auth/register`, SpringBoot APIs require:
+
+```text
+Authorization: Bearer <JWT token>
+```
+
+Role access:
+
+```text
+一般用户: upload videos, view own uploads and limited own details
+审核员: review tasks and review detail
+管理员: dashboard, all videos, sensitive words, users
+```
+
 ## Health
 
 ### GET /api/health
@@ -36,16 +62,19 @@ Response:
 Implemented:
 
 ```text
+POST /api/auth/register
 POST /api/auth/login
 GET  /api/auth/me
+GET  /api/users
+PUT  /api/users/{id}/role
 ```
 
 Roles:
 
 ```text
-USER
-REVIEWER
-ADMIN
+一般用户
+审核员
+管理员
 ```
 
 ### POST /api/auth/login
@@ -67,8 +96,23 @@ Response:
 {
   "id": 2,
   "username": "reviewer",
-  "role": "REVIEWER",
+  "role": "审核员",
+  "token": "jwt-token",
   "createdAt": "2026-06-08T21:16:38"
+}
+```
+
+### POST /api/auth/register
+
+New users are created as `一般用户`.
+
+### PUT /api/users/{id}/role
+
+Admin only.
+
+```json
+{
+  "role": "审核员"
 }
 ```
 
@@ -106,8 +150,9 @@ Request: `multipart/form-data`
 file: video file, mp4/mov/avi
 title: string
 description: string
-uploaderId: number
 ```
+
+`uploaderId` is read from JWT. The frontend must not submit it manually.
 
 Response:
 
@@ -117,7 +162,7 @@ Response:
   "title": "demo",
   "filePath": "uploads/videos/uuid.mp4",
   "fileUrl": "/uploads/videos/uuid.mp4",
-  "status": "UPLOADED"
+  "status": "已上传"
 }
 ```
 
@@ -198,14 +243,14 @@ Redirects to the uploaded static file URL, for example:
 
 ### POST /api/videos/{id}/analyze
 
-Calls FastAPI `/ai/analyze`, persists the AI evidence, and updates the video status.
+Admin-only manual trigger. The improved workflow also runs automatic pre-review in the background for videos with status `已上传`.
 
 Processing rules:
 
 ```text
-PASS       -> AI_PASSED
-SUSPICIOUS -> AI_SUSPICIOUS
-VIOLATION  -> AI_VIOLATION
+正常 -> 通过, finalResult = 正常
+可疑 -> 复审中
+违规 -> 复审中
 ```
 
 Response: same shape as `GET /api/videos/{id}`, with populated `aiResult`, `frames`, and `sensitiveHits`.
@@ -267,13 +312,14 @@ GET  /api/review/logs/{videoId}
 
 ### GET /api/review/tasks
 
-Returns videos that need manual review. By default, this endpoint returns videos with status `AI_SUSPICIOUS` or `AI_VIOLATION` and no final manual result.
+Returns videos that need manual review. By default, this endpoint returns videos with status `复审中`.
 
 Query parameters:
 
 ```text
-status: optional, for example AI_SUSPICIOUS
-aiRiskLevel: optional, for example SUSPICIOUS
+status: optional, for example 复审中
+aiRiskLevel: optional, for example 可疑
+violationCategory: optional, for example 暴力
 ```
 
 ### GET /api/review/tasks/{videoId}
@@ -287,7 +333,8 @@ Submit request:
 ```json
 {
   "reviewerId": 2,
-  "finalResult": "REJECT",
+  "status": "驳回",
+  "violationCategory": "暴力",
   "comment": "Reviewed manually."
 }
 ```
@@ -295,11 +342,12 @@ Submit request:
 Rules:
 
 ```text
-finalResult = PASS   -> video.status = MANUAL_PASSED
-finalResult = REJECT -> video.status = MANUAL_REJECTED
+status = 通过   -> finalResult = 正常, violationCategory = null
+status = 待申诉 -> finalResult = 可疑
+status = 驳回   -> finalResult = 违规
 ```
 
-The endpoint updates `video.final_result`, updates `video.final_comment`, and appends one row to `review_log`.
+The endpoint updates `video.status`, `video.final_result`, `video.violation_category`, `video.final_comment`, and appends one row to `review_log`. A video can be submitted only while its status is `复审中`.
 
 ### GET /api/review/logs/{videoId}
 

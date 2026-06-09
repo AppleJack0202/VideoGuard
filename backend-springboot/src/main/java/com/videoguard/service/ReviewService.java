@@ -11,8 +11,6 @@ import com.videoguard.repository.VideoRepository;
 import jakarta.persistence.criteria.Predicate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
-import java.util.Set;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -21,9 +19,6 @@ import org.springframework.util.StringUtils;
 
 @Service
 public class ReviewService {
-
-    private static final Set<String> REVIEWABLE_STATUSES = Set.of("AI_SUSPICIOUS", "AI_VIOLATION");
-    private static final Set<String> FINAL_RESULTS = Set.of("PASS", "REJECT");
 
     private final VideoRepository videoRepository;
     private final ReviewLogRepository reviewLogRepository;
@@ -39,23 +34,24 @@ public class ReviewService {
     }
 
     @Transactional(readOnly = true)
-    public List<VideoListItemResponse> tasks(String status, String aiRiskLevel) {
+    public List<VideoListItemResponse> tasks(String status, String aiRiskLevel, String violationCategory) {
         Specification<Video> specification = (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
             if (StringUtils.hasText(status)) {
                 predicates.add(criteriaBuilder.equal(root.get("status"), status));
             } else {
-                predicates.add(root.get("status").in(REVIEWABLE_STATUSES));
+                predicates.add(root.get("status").in(WorkflowConstants.REVIEWABLE_STATUSES));
             }
             if (StringUtils.hasText(aiRiskLevel)) {
                 predicates.add(criteriaBuilder.equal(root.get("aiRiskLevel"), aiRiskLevel));
             }
-            predicates.add(criteriaBuilder.isNull(root.get("finalResult")));
+            if (StringUtils.hasText(violationCategory)) {
+                predicates.add(criteriaBuilder.equal(root.get("violationCategory"), violationCategory));
+            }
             return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
         };
 
-        return videoRepository.findAll(specification, Sort.by(Sort.Direction.DESC, "aiRiskScore")
-                        .and(Sort.by(Sort.Direction.DESC, "createdAt")))
+        return videoRepository.findAll(specification, Sort.by(Sort.Direction.DESC, "createdAt"))
                 .stream()
                 .map(VideoListItemResponse::from)
                 .toList();
@@ -70,7 +66,12 @@ public class ReviewService {
     public VideoDetailResponse submit(Long videoId, ReviewSubmitRequest request) {
         Video video = videoRepository.findById(videoId)
                 .orElseThrow(() -> new IllegalArgumentException("Video not found: " + videoId));
-        String finalResult = normalizeResult(request.getFinalResult());
+        if (!WorkflowConstants.STATUS_MANUAL_REVIEWING.equals(video.getStatus())) {
+            throw new IllegalArgumentException("Review has already been submitted or the video is not in manual review.");
+        }
+        String afterStatus = normalizeStatus(request.getStatus());
+        String violationCategory = normalizeViolationCategory(request.getViolationCategory(), afterStatus);
+        String finalResult = toFinalResult(afterStatus);
         String comment = request.getComment() == null ? "" : request.getComment().trim();
         if (!StringUtils.hasText(comment)) {
             throw new IllegalArgumentException("Review comment is required.");
@@ -78,11 +79,11 @@ public class ReviewService {
 
         String beforeStatus = video.getStatus();
         String beforeResult = video.getFinalResult();
-        String afterStatus = toManualStatus(finalResult);
 
         video.setFinalResult(finalResult);
         video.setFinalComment(comment);
         video.setStatus(afterStatus);
+        video.setViolationCategory(violationCategory);
         videoRepository.save(video);
 
         ReviewLog log = new ReviewLog();
@@ -106,18 +107,34 @@ public class ReviewService {
                 .toList();
     }
 
-    private String normalizeResult(String finalResult) {
-        if (finalResult == null) {
-            throw new IllegalArgumentException("Final result is required.");
+    private String normalizeStatus(String status) {
+        if (!StringUtils.hasText(status)) {
+            throw new IllegalArgumentException("Review status is required.");
         }
-        String normalized = finalResult.trim().toUpperCase(Locale.ROOT);
-        if (!FINAL_RESULTS.contains(normalized)) {
-            throw new IllegalArgumentException("Final result must be PASS or REJECT.");
+        String normalized = status.trim();
+        if (!WorkflowConstants.REVIEW_SUBMIT_STATUSES.contains(normalized)) {
+            throw new IllegalArgumentException("Review status must be 通过, 驳回, or 待申诉.");
         }
         return normalized;
     }
 
-    private String toManualStatus(String finalResult) {
-        return "PASS".equals(finalResult) ? "MANUAL_PASSED" : "MANUAL_REJECTED";
+    private String normalizeViolationCategory(String violationCategory, String status) {
+        if (WorkflowConstants.STATUS_PASSED.equals(status)) {
+            return null;
+        }
+        String normalized = WorkflowConstants.normalizeCategory(violationCategory);
+        if (!StringUtils.hasText(normalized) || !WorkflowConstants.VIOLATION_CATEGORIES.contains(normalized)) {
+            throw new IllegalArgumentException("Violation category must be 暴力, 色情, or 政治敏感.");
+        }
+        return normalized;
+    }
+
+    private String toFinalResult(String status) {
+        return switch (status) {
+            case WorkflowConstants.STATUS_PASSED -> WorkflowConstants.RISK_NORMAL;
+            case WorkflowConstants.STATUS_APPEAL_PENDING -> WorkflowConstants.RISK_SUSPICIOUS;
+            case WorkflowConstants.STATUS_REJECTED -> WorkflowConstants.RISK_VIOLATION;
+            default -> WorkflowConstants.RISK_SUSPICIOUS;
+        };
     }
 }

@@ -2,7 +2,6 @@ package com.videoguard.service;
 
 import com.videoguard.dto.CountItemResponse;
 import com.videoguard.dto.StatisticsOverviewResponse;
-import com.videoguard.repository.SensitiveHitRepository;
 import com.videoguard.repository.VideoRepository;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -14,24 +13,31 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class StatisticsService {
 
-    private static final Set<String> REVIEWABLE_STATUSES = Set.of("AI_SUSPICIOUS", "AI_VIOLATION");
-    private static final Set<String> MANUAL_STATUSES = Set.of("MANUAL_PASSED", "MANUAL_REJECTED");
+    private static final Set<String> AI_PRE_REVIEW_STATUSES = Set.of(
+            WorkflowConstants.STATUS_UPLOADED,
+            WorkflowConstants.STATUS_PRE_REVIEWING);
+    private static final Set<String> REVIEWED_STATUSES = Set.of(
+            WorkflowConstants.STATUS_PASSED,
+            WorkflowConstants.STATUS_REJECTED,
+            WorkflowConstants.STATUS_APPEAL_PENDING);
 
     private final VideoRepository videoRepository;
-    private final SensitiveHitRepository sensitiveHitRepository;
 
-    public StatisticsService(VideoRepository videoRepository, SensitiveHitRepository sensitiveHitRepository) {
+    public StatisticsService(VideoRepository videoRepository) {
         this.videoRepository = videoRepository;
-        this.sensitiveHitRepository = sensitiveHitRepository;
     }
 
     @Transactional(readOnly = true)
     public StatisticsOverviewResponse overview() {
         long total = videoRepository.count();
         long todayUploads = videoRepository.countByCreatedAtGreaterThanEqual(LocalDate.now().atStartOfDay());
-        long pendingReviews = videoRepository.countByStatusInAndFinalResultIsNull(REVIEWABLE_STATUSES);
-        long manualReviewed = videoRepository.countByStatusIn(MANUAL_STATUSES);
-        long aiPassed = videoRepository.countByStatus("AI_PASSED");
+        long pendingReviews = videoRepository.countByStatus(WorkflowConstants.STATUS_MANUAL_REVIEWING);
+        long manualReviewed = videoRepository.countByStatusIn(REVIEWED_STATUSES);
+        long aiPassed = videoRepository.countByStatus(WorkflowConstants.STATUS_PASSED);
+        long preReviewTotal = videoRepository.countByStatusIn(AI_PRE_REVIEW_STATUSES);
+        long preReviewNormal = videoRepository.countByStatusInAndAiRiskLevel(
+                AI_PRE_REVIEW_STATUSES,
+                WorkflowConstants.RISK_NORMAL);
 
         StatisticsOverviewResponse response = new StatisticsOverviewResponse();
         response.setTotalVideos(total);
@@ -39,7 +45,7 @@ public class StatisticsService {
         response.setPendingReviews(pendingReviews);
         response.setManualReviewed(manualReviewed);
         response.setAiPassed(aiPassed);
-        response.setAiPassRate(total == 0 ? 0.0 : roundPercent(aiPassed * 100.0 / total));
+        response.setAiPassRate(preReviewTotal == 0 ? 0.0 : roundPercent(preReviewNormal * 100.0 / preReviewTotal));
         return response;
     }
 
@@ -62,7 +68,7 @@ public class StatisticsService {
 
     @Transactional(readOnly = true)
     public List<CountItemResponse> categoryDistribution() {
-        return sensitiveHitRepository.countByCategory();
+        return videoRepository.countByViolationCategory();
     }
 
     private Double roundPercent(double value) {

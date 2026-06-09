@@ -2,7 +2,9 @@ package com.videoguard;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
+@EnableScheduling
 @SpringBootApplication
 public class VideoGuardApplication {
 
@@ -10,4 +12,3 @@ public class VideoGuardApplication {
         SpringApplication.run(VideoGuardApplication.class, args);
     }
 }
-

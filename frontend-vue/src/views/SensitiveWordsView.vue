@@ -2,10 +2,9 @@
   <section class="panel page">
     <div class="toolbar">
       <el-select v-model="filters.category" clearable placeholder="敏感类别">
-        <el-option label="violence" value="violence" />
-        <el-option label="porn" value="porn" />
-        <el-option label="illegal" value="illegal" />
-        <el-option label="custom" value="custom" />
+        <el-option label="暴力" value="暴力" />
+        <el-option label="色情" value="色情" />
+        <el-option label="政治敏感" value="政治敏感" />
       </el-select>
       <el-select v-model="filters.enabled" clearable placeholder="启用状态">
         <el-option label="启用" :value="1" />
@@ -49,10 +48,9 @@
         </el-form-item>
         <el-form-item label="类别">
           <el-select v-model="form.category" allow-create filterable placeholder="请选择或输入类别">
-            <el-option label="violence" value="violence" />
-            <el-option label="porn" value="porn" />
-            <el-option label="illegal" value="illegal" />
-            <el-option label="custom" value="custom" />
+            <el-option label="暴力" value="暴力" />
+            <el-option label="色情" value="色情" />
+            <el-option label="政治敏感" value="政治敏感" />
           </el-select>
         </el-form-item>
         <el-form-item label="权重">
@@ -93,7 +91,7 @@ const filters = reactive({
 
 const form = reactive({
   word: '',
-  category: 'custom',
+  category: '暴力',
   weight: 20,
   enabled: 1
 })
@@ -111,7 +109,7 @@ async function loadWords() {
 
 function openCreate() {
   editingId.value = null
-  Object.assign(form, { word: '', category: 'custom', weight: 20, enabled: 1 })
+  Object.assign(form, { word: '', category: '暴力', weight: 20, enabled: 1 })
   dialogVisible.value = true
 }
 

@@ -22,6 +22,7 @@ public class VideoDetailResponse {
     private String status;
     private String aiRiskLevel;
     private Double aiRiskScore;
+    private String violationCategory;
     private String finalResult;
     private String finalComment;
     private LocalDateTime createdAt;
@@ -49,6 +50,7 @@ public class VideoDetailResponse {
         response.setStatus(video.getStatus());
         response.setAiRiskLevel(video.getAiRiskLevel());
         response.setAiRiskScore(video.getAiRiskScore());
+        response.setViolationCategory(video.getViolationCategory());
         response.setFinalResult(video.getFinalResult());
         response.setFinalComment(video.getFinalComment());
         response.setCreatedAt(video.getCreatedAt());
@@ -185,6 +187,14 @@ public class VideoDetailResponse {
 
     public void setAiRiskScore(Double aiRiskScore) {
         this.aiRiskScore = aiRiskScore;
+    }
+
+    public String getViolationCategory() {
+        return violationCategory;
+    }
+
+    public void setViolationCategory(String violationCategory) {
+        this.violationCategory = violationCategory;
     }
 
     public String getFinalResult() {

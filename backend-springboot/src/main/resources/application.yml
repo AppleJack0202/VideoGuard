@@ -22,5 +22,12 @@ spring:
 
 videoguard:
   uploads-dir: ../uploads
+  jwt:
+    secret: ${JWT_SECRET:VideoGuardLocalDemoSecret}
+    expires-in-seconds: 86400
   ai-service:
     base-url: http://localhost:8000
+  pre-review:
+    enabled: true
+    fixed-delay-ms: 15000
+    batch-size: 2

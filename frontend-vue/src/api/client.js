@@ -1,7 +1,15 @@
 const API_BASE_URL = 'http://localhost:8081'
 
 async function request(path, options = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}`, options)
+  const token = localStorage.getItem('videoguard_token')
+  const headers = new Headers(options.headers || {})
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers
+  })
   const contentType = response.headers.get('content-type') || ''
   const data = contentType.includes('application/json') ? await response.json() : await response.text()
 
@@ -20,12 +28,11 @@ export function toAssetUrl(path) {
   return path.startsWith('http') ? path : `${API_BASE_URL}${path}`
 }
 
-export function uploadVideo({ file, title, description, uploaderId }) {
+export function uploadVideo({ file, title, description }) {
   const formData = new FormData()
   formData.append('file', file)
   formData.append('title', title)
   formData.append('description', description || '')
-  formData.append('uploaderId', uploaderId || 1)
 
   return request('/api/videos/upload', {
     method: 'POST',
@@ -48,6 +55,10 @@ export function fetchVideos(filters = {}) {
   })
   const query = params.toString()
   return request(`/api/videos${query ? `?${query}` : ''}`)
+}
+
+export function fetchMyVideos() {
+  return fetchVideos({ mine: true })
 }
 
 export function fetchVideoDetail(videoId) {
@@ -150,7 +161,31 @@ export function login(payload) {
   })
 }
 
+export function register(payload) {
+  return request('/api/auth/register', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  })
+}
+
 export function fetchCurrentUser(userId) {
   const query = userId ? `?userId=${userId}` : ''
   return request(`/api/auth/me${query}`)
+}
+
+export function fetchUsers() {
+  return request('/api/users')
+}
+
+export function updateUserRole(userId, role) {
+  return request(`/api/users/${userId}/role`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ role })
+  })
 }

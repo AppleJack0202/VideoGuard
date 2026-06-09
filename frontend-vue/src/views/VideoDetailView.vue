@@ -7,7 +7,7 @@
       </div>
       <div class="toolbar">
         <el-button :loading="loading" @click="loadDetail">刷新</el-button>
-        <el-button type="primary" :loading="analyzing" @click="handleAnalyze">重新分析</el-button>
+        <el-button v-if="isAdmin" type="primary" :loading="analyzing" @click="handleAnalyze">重新分析</el-button>
       </div>
     </div>
 
@@ -22,13 +22,17 @@
             <span>处理状态</span>
             <strong>{{ video?.status || '-' }}</strong>
           </div>
-          <div class="metric">
+          <div v-if="canViewAuditEvidence" class="metric">
             <span>风险等级</span>
             <strong>{{ video?.aiRiskLevel || '-' }}</strong>
           </div>
-          <div class="metric">
+          <div v-if="canViewAuditEvidence" class="metric">
             <span>风险分</span>
             <strong>{{ video?.aiRiskScore ?? '-' }}</strong>
+          </div>
+          <div v-if="canViewAuditEvidence" class="metric">
+            <span>违规类别</span>
+            <strong>{{ video?.violationCategory || '-' }}</strong>
           </div>
           <div class="metric">
             <span>时长</span>
@@ -36,7 +40,7 @@
           </div>
         </div>
 
-        <el-descriptions v-if="video?.aiResult" :column="1" border>
+        <el-descriptions v-if="canViewAuditEvidence && video?.aiResult" :column="1" border>
           <el-descriptions-item label="最终风险分">{{ video.aiResult.finalScore ?? '-' }}</el-descriptions-item>
           <el-descriptions-item label="AI 风险等级">{{ video.aiResult.riskLevel || '-' }}</el-descriptions-item>
           <el-descriptions-item label="文本风险分">{{ video.aiResult.textScore ?? '-' }}</el-descriptions-item>
@@ -46,7 +50,7 @@
       </div>
     </div>
 
-    <div class="panel page">
+    <div v-if="canViewAuditEvidence" class="panel page">
       <h3>敏感命中</h3>
       <el-table :data="video?.sensitiveHits || []" border>
         <el-table-column prop="sourceType" label="来源" width="120" />
@@ -57,7 +61,7 @@
       </el-table>
     </div>
 
-    <div class="panel page">
+    <div v-if="canViewAuditEvidence" class="panel page">
       <h3>视频抽帧</h3>
       <div class="frame-grid">
         <div v-for="frame in video?.frames || []" :key="frame.id" class="frame-item">
@@ -67,7 +71,7 @@
       </div>
     </div>
 
-    <div class="panel page">
+    <div v-if="canViewAuditEvidence" class="panel page">
       <h3>复审日志</h3>
       <el-table :data="video?.reviewLogs || []" border>
         <el-table-column prop="reviewerId" label="审核员" width="100" />
@@ -84,7 +88,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { analyzeVideo, fetchVideoDetail, toAssetUrl } from '../api/client'
@@ -93,6 +97,12 @@ const route = useRoute()
 const video = ref(null)
 const loading = ref(false)
 const analyzing = ref(false)
+const currentUser = computed(() => {
+  const raw = localStorage.getItem('videoguard_user')
+  return raw ? JSON.parse(raw) : null
+})
+const canViewAuditEvidence = computed(() => ['审核员', '管理员'].includes(currentUser.value?.role))
+const isAdmin = computed(() => currentUser.value?.role === '管理员')
 
 async function loadDetail() {
   loading.value = true

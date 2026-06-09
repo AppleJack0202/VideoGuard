@@ -19,6 +19,10 @@ public interface VideoRepository extends JpaRepository<Video, Long>, JpaSpecific
 
     long countByStatus(String status);
 
+    List<Video> findByStatusOrderByCreatedAtAsc(String status);
+
+    long countByStatusInAndAiRiskLevel(Collection<String> statuses, String aiRiskLevel);
+
     @Query("select new com.videoguard.dto.CountItemResponse(coalesce(v.aiRiskLevel, 'UNANALYZED'), count(v)) "
             + "from Video v group by coalesce(v.aiRiskLevel, 'UNANALYZED')")
     List<CountItemResponse> countByRiskLevel();
@@ -26,6 +30,10 @@ public interface VideoRepository extends JpaRepository<Video, Long>, JpaSpecific
     @Query("select new com.videoguard.dto.CountItemResponse(v.status, count(v)) "
             + "from Video v group by v.status")
     List<CountItemResponse> countByStatusGroup();
+
+    @Query("select new com.videoguard.dto.CountItemResponse(coalesce(v.violationCategory, '未分类'), count(v)) "
+            + "from Video v where v.violationCategory is not null group by coalesce(v.violationCategory, '未分类')")
+    List<CountItemResponse> countByViolationCategory();
 
     @Query("select new com.videoguard.dto.CountItemResponse("
             + "cast(function('date_format', v.createdAt, '%Y-%m-%d') as string), count(v)) "

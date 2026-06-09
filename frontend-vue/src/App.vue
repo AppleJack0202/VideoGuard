@@ -6,11 +6,7 @@
         <span>AI 内容审核</span>
       </div>
       <el-menu :default-active="$route.path" router>
-        <el-menu-item index="/dashboard">统计看板</el-menu-item>
-        <el-menu-item index="/upload">视频上传</el-menu-item>
-        <el-menu-item index="/videos">视频管理</el-menu-item>
-        <el-menu-item index="/review">人工复审</el-menu-item>
-        <el-menu-item index="/sensitive-words">敏感词管理</el-menu-item>
+        <el-menu-item v-for="item in menuItems" :key="item.path" :index="item.path">{{ item.label }}</el-menu-item>
         <el-menu-item index="/login">登录</el-menu-item>
       </el-menu>
     </el-aside>
@@ -45,13 +41,51 @@ const routeTitle = computed(() => route.meta.title || 'VideoGuard')
 
 function loadUser() {
   const raw = localStorage.getItem('videoguard_user')
-  currentUser.value = raw ? JSON.parse(raw) : null
+  currentUser.value = raw ? normalizeUser(JSON.parse(raw)) : null
+  if (currentUser.value) {
+    localStorage.setItem('videoguard_user', JSON.stringify(currentUser.value))
+  }
 }
 
 function logout() {
   localStorage.removeItem('videoguard_user')
+  localStorage.removeItem('videoguard_token')
   loadUser()
   router.push('/login')
+}
+
+const menuItems = computed(() => {
+  const role = currentUser.value?.role
+  if (role === '一般用户') {
+    return [
+      { path: '/upload', label: '视频上传' },
+      { path: '/my-videos', label: '我的上传' }
+    ]
+  }
+  if (role === '审核员') {
+    return [{ path: '/review', label: '人工复审' }]
+  }
+  if (role === '管理员') {
+    return [
+      { path: '/dashboard', label: '统计看板' },
+      { path: '/videos', label: '视频管理' },
+      { path: '/sensitive-words', label: '敏感词管理' },
+      { path: '/users', label: '用户管理' }
+    ]
+  }
+  return []
+})
+
+function normalizeUser(user) {
+  const roleMap = {
+    USER: '一般用户',
+    REVIEWER: '审核员',
+    ADMIN: '管理员'
+  }
+  return {
+    ...user,
+    role: roleMap[user.role] || user.role
+  }
 }
 
 onMounted(() => {

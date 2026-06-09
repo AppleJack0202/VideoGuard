@@ -56,6 +56,9 @@ public class Video {
     @Column(name = "ai_risk_score")
     private Double aiRiskScore = 0.0;
 
+    @Column(name = "violation_category")
+    private String violationCategory;
+
     @Column(name = "final_result")
     private String finalResult;
 
@@ -200,6 +203,14 @@ public class Video {
         this.aiRiskScore = aiRiskScore;
     }
 
+    public String getViolationCategory() {
+        return violationCategory;
+    }
+
+    public void setViolationCategory(String violationCategory) {
+        this.violationCategory = violationCategory;
+    }
+
     public String getFinalResult() {
         return finalResult;
     }
@@ -232,4 +243,3 @@ public class Video {
         this.updatedAt = updatedAt;
     }
 }
-

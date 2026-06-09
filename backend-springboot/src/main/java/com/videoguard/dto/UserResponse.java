@@ -1,6 +1,7 @@
 package com.videoguard.dto;
 
 import com.videoguard.entity.User;
+import com.videoguard.service.WorkflowConstants;
 import java.time.LocalDateTime;
 
 public class UserResponse {
@@ -8,13 +9,14 @@ public class UserResponse {
     private Long id;
     private String username;
     private String role;
+    private String token;
     private LocalDateTime createdAt;
 
     public static UserResponse from(User user) {
         UserResponse response = new UserResponse();
         response.setId(user.getId());
         response.setUsername(user.getUsername());
-        response.setRole(user.getRole());
+        response.setRole(WorkflowConstants.normalizeRole(user.getRole()));
         response.setCreatedAt(user.getCreatedAt());
         return response;
     }
@@ -41,6 +43,14 @@ public class UserResponse {
 
     public void setRole(String role) {
         this.role = role;
+    }
+
+    public String getToken() {
+        return token;
+    }
+
+    public void setToken(String token) {
+        this.token = token;
     }
 
     public LocalDateTime getCreatedAt() {

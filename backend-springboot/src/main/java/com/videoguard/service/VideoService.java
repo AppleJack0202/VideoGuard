@@ -117,7 +117,7 @@ public class VideoService {
             video.setStoredFilename(storedFilename);
             video.setFilePath(Path.of("uploads", "videos", storedFilename).toString().replace("\\", "/"));
             video.setFileSize(file.getSize());
-            video.setStatus("UPLOADED");
+            video.setStatus(WorkflowConstants.STATUS_UPLOADED);
 
             return VideoUploadResponse.from(videoRepository.save(video));
         } catch (IOException e) {
@@ -158,7 +158,7 @@ public class VideoService {
     }
 
     @Transactional(readOnly = true)
-    public List<VideoListItemResponse> list(String status, String aiRiskLevel) {
+    public List<VideoListItemResponse> list(String status, String aiRiskLevel, String violationCategory, Long uploaderId) {
         Specification<Video> specification = (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
             if (StringUtils.hasText(status)) {
@@ -166,6 +166,12 @@ public class VideoService {
             }
             if (StringUtils.hasText(aiRiskLevel)) {
                 predicates.add(criteriaBuilder.equal(root.get("aiRiskLevel"), aiRiskLevel));
+            }
+            if (StringUtils.hasText(violationCategory)) {
+                predicates.add(criteriaBuilder.equal(root.get("violationCategory"), violationCategory));
+            }
+            if (uploaderId != null) {
+                predicates.add(criteriaBuilder.equal(root.get("uploaderId"), uploaderId));
             }
             return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
         };
@@ -199,11 +205,31 @@ public class VideoService {
         return response;
     }
 
+    @Transactional(readOnly = true)
+    public VideoDetailResponse userDetail(Long id, Long uploaderId) {
+        Video video = videoRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Video not found: " + id));
+        if (!video.getUploaderId().equals(uploaderId)) {
+            throw new IllegalArgumentException("Video not found: " + id);
+        }
+        VideoDetailResponse response = VideoDetailResponse.from(video);
+        response.setAiRiskLevel(null);
+        response.setAiRiskScore(null);
+        response.setViolationCategory(null);
+        response.setFinalResult(null);
+        response.setFinalComment(null);
+        response.setAiResult(null);
+        response.setFrames(List.of());
+        response.setSensitiveHits(List.of());
+        response.setReviewLogs(List.of());
+        return response;
+    }
+
     @Transactional
     public VideoDetailResponse analyze(Long id) {
         Video video = videoRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Video not found: " + id));
-        video.setStatus("PROCESSING");
+        video.setStatus(WorkflowConstants.STATUS_PRE_REVIEWING);
         videoRepository.save(video);
 
         List<SensitiveWord> sensitiveWords = sensitiveWordRepository.findByEnabled(1);
@@ -224,12 +250,23 @@ public class VideoService {
         saveSensitiveHits(video.getId(), aiResponse);
         saveAiReviewResult(video.getId(), aiResponse);
 
-        video.setAiRiskLevel(aiResponse.getRiskLevel());
+        String riskLevel = WorkflowConstants.normalizeRiskLevel(aiResponse.getRiskLevel());
+        video.setAiRiskLevel(riskLevel);
         video.setAiRiskScore(aiResponse.getScores().getFinalScore());
-        video.setStatus(toVideoStatus(aiResponse.getRiskLevel()));
+        video.setViolationCategory(resolveViolationCategory(aiResponse));
+        video.setStatus(toVideoStatus(riskLevel));
+        video.setFinalResult(toAiFinalResult(riskLevel));
         videoRepository.save(video);
 
         return detail(id);
+    }
+
+    @Transactional
+    public void analyzeNextUploadedBatch(int limit) {
+        List<Video> videos = videoRepository.findByStatusOrderByCreatedAtAsc(WorkflowConstants.STATUS_UPLOADED);
+        videos.stream()
+                .limit(Math.max(1, limit))
+                .forEach(video -> analyze(video.getId()));
     }
 
     private AiAnalyzeResponse.AnalyzeRequestPayload buildAnalyzeRequest(Video video, List<SensitiveWord> sensitiveWords) {
@@ -331,11 +368,34 @@ public class VideoService {
 
     private String toVideoStatus(String riskLevel) {
         return switch (riskLevel) {
-            case "PASS" -> "AI_PASSED";
-            case "SUSPICIOUS" -> "AI_SUSPICIOUS";
-            case "VIOLATION" -> "AI_VIOLATION";
-            default -> "FAILED";
+            case WorkflowConstants.RISK_NORMAL -> WorkflowConstants.STATUS_PASSED;
+            case WorkflowConstants.RISK_SUSPICIOUS, WorkflowConstants.RISK_VIOLATION -> WorkflowConstants.STATUS_MANUAL_REVIEWING;
+            default -> WorkflowConstants.STATUS_APPEAL_PENDING;
         };
+    }
+
+    private String toAiFinalResult(String riskLevel) {
+        return switch (riskLevel) {
+            case WorkflowConstants.RISK_NORMAL -> WorkflowConstants.RISK_NORMAL;
+            case WorkflowConstants.RISK_SUSPICIOUS -> WorkflowConstants.RISK_SUSPICIOUS;
+            case WorkflowConstants.RISK_VIOLATION -> WorkflowConstants.RISK_VIOLATION;
+            default -> null;
+        };
+    }
+
+    private String resolveViolationCategory(AiAnalyzeResponse aiResponse) {
+        if (aiResponse.getTextHits() != null && !aiResponse.getTextHits().isEmpty()) {
+            return WorkflowConstants.normalizeCategory(aiResponse.getTextHits().get(0).getCategory());
+        }
+        if (aiResponse.getFrames() != null) {
+            return aiResponse.getFrames().stream()
+                    .filter(frame -> frame.getRiskScore() != null && frame.getRiskScore() >= 30)
+                    .map(frame -> WorkflowConstants.normalizeCategory(frame.getLabel()))
+                    .filter(StringUtils::hasText)
+                    .findFirst()
+                    .orElse(null);
+        }
+        return null;
     }
 
     private String getExtension(String filename) {

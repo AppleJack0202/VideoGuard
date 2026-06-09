@@ -20,15 +20,17 @@ CREATE TABLE IF NOT EXISTS video (
   width INT,
   height INT,
   fps DOUBLE,
-  status VARCHAR(32) NOT NULL DEFAULT 'UPLOADED',
+  status VARCHAR(32) NOT NULL DEFAULT '已上传',
   ai_risk_level VARCHAR(32),
   ai_risk_score DOUBLE DEFAULT 0,
+  violation_category VARCHAR(32),
   final_result VARCHAR(32),
   final_comment TEXT,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_video_status (status),
   INDEX idx_video_ai_risk_level (ai_risk_level),
+  INDEX idx_video_violation_category (violation_category),
   INDEX idx_video_uploader_id (uploader_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -96,4 +98,3 @@ CREATE TABLE IF NOT EXISTS review_log (
   INDEX idx_review_log_video_id (video_id),
   INDEX idx_review_log_reviewer_id (reviewer_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-

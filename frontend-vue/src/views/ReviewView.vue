@@ -3,12 +3,16 @@
     <div class="panel page">
       <div class="toolbar">
         <el-select v-model="filters.status" clearable placeholder="处理状态">
-          <el-option label="AI 可疑" value="AI_SUSPICIOUS" />
-          <el-option label="AI 违规" value="AI_VIOLATION" />
+          <el-option label="复审中" value="复审中" />
         </el-select>
         <el-select v-model="filters.aiRiskLevel" clearable placeholder="风险等级">
-          <el-option label="可疑" value="SUSPICIOUS" />
-          <el-option label="违规" value="VIOLATION" />
+          <el-option label="可疑" value="可疑" />
+          <el-option label="违规" value="违规" />
+        </el-select>
+        <el-select v-model="filters.violationCategory" clearable placeholder="违规类别">
+          <el-option label="暴力" value="暴力" />
+          <el-option label="色情" value="色情" />
+          <el-option label="政治敏感" value="政治敏感" />
         </el-select>
         <el-button :loading="loadingTasks" @click="loadTasks">刷新</el-button>
       </div>
@@ -18,12 +22,20 @@
         v-loading="loadingTasks"
         border
         highlight-current-row
-        @row-click="selectTask"
       >
         <el-table-column prop="title" label="视频标题" min-width="170" />
         <el-table-column prop="aiRiskLevel" label="风险" width="100" />
+        <el-table-column prop="violationCategory" label="类别" width="110">
+          <template #default="{ row }">{{ row.violationCategory || '-' }}</template>
+        </el-table-column>
         <el-table-column prop="aiRiskScore" label="分数" width="80" />
         <el-table-column prop="status" label="状态" width="140" />
+        <el-table-column label="操作" width="150" fixed="right">
+          <template #default="{ row }">
+            <el-button size="small" @click="router.push(`/videos/${row.id}`)">详情</el-button>
+            <el-button size="small" type="primary" @click="selectTask(row)">复审</el-button>
+          </template>
+        </el-table-column>
       </el-table>
     </div>
 
@@ -56,20 +68,39 @@
               <strong>{{ currentTask.aiRiskScore ?? '-' }}</strong>
             </div>
             <div class="metric">
+              <span>违规类别</span>
+              <strong>{{ currentTask.violationCategory || '-' }}</strong>
+            </div>
+            <div class="metric">
               <span>最终结论</span>
               <strong>{{ currentTask.finalResult || '-' }}</strong>
             </div>
           </div>
 
+          <el-descriptions :column="1" border>
+            <el-descriptions-item label="视频时长">{{ currentTask.duration ?? '-' }} 秒</el-descriptions-item>
+            <el-descriptions-item label="分辨率">
+              {{ currentTask.width || '-' }} x {{ currentTask.height || '-' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="文件大小">{{ formatFileSize(currentTask.fileSize) }}</el-descriptions-item>
+            <el-descriptions-item label="上传者ID">{{ currentTask.uploaderId }}</el-descriptions-item>
+            <el-descriptions-item label="上传时间">{{ formatDate(currentTask.createdAt) }}</el-descriptions-item>
+          </el-descriptions>
+
           <el-form :model="form" label-width="90px">
-            <el-form-item label="审核员 ID">
-              <el-input-number v-model="form.reviewerId" :min="1" />
-            </el-form-item>
-            <el-form-item label="复审结论">
+            <el-form-item label="视频状态">
               <el-radio-group v-model="form.finalResult">
-                <el-radio-button label="PASS">通过</el-radio-button>
-                <el-radio-button label="REJECT">驳回</el-radio-button>
+                <el-radio-button label="通过">通过</el-radio-button>
+                <el-radio-button label="驳回">驳回</el-radio-button>
+                <el-radio-button label="待申诉">待申诉</el-radio-button>
               </el-radio-group>
+            </el-form-item>
+            <el-form-item v-if="form.finalResult !== '通过'" label="违规类别">
+              <el-select v-model="form.violationCategory" placeholder="请选择违规类别">
+                <el-option label="暴力" value="暴力" />
+                <el-option label="色情" value="色情" />
+                <el-option label="政治敏感" value="政治敏感" />
+              </el-select>
             </el-form-item>
             <el-form-item label="审核意见">
               <el-input v-model="form.comment" type="textarea" :rows="4" placeholder="请输入人工复审意见" />
@@ -90,6 +121,16 @@
           <el-table-column prop="weight" label="权重" width="100" />
           <el-table-column prop="contextText" label="上下文" min-width="180" />
         </el-table>
+      </div>
+
+      <div v-if="currentTask" class="panel page">
+        <h3>关键帧缩略图</h3>
+        <div class="frame-grid">
+          <div v-for="frame in currentTask.frames || []" :key="frame.id" class="frame-item">
+            <img :src="toAssetUrl(frame.frameUrl)" :alt="`frame-${frame.id}`" />
+            <span>{{ frame.timestampSec ?? 0 }}s / {{ frame.riskScore ?? 0 }}分</span>
+          </div>
+        </div>
       </div>
 
       <div v-if="currentTask" class="panel page">
@@ -131,12 +172,13 @@ const submitting = ref(false)
 
 const filters = reactive({
   status: '',
-  aiRiskLevel: ''
+  aiRiskLevel: '',
+  violationCategory: ''
 })
 
 const form = reactive({
-  reviewerId: 2,
-  finalResult: 'PASS',
+  finalResult: '通过',
+  violationCategory: '暴力',
   comment: ''
 })
 
@@ -159,6 +201,7 @@ async function selectTask(row) {
   try {
     currentTask.value = await fetchReviewTask(row.id)
     reviewLogs.value = await fetchReviewLogs(row.id)
+    form.violationCategory = currentTask.value.violationCategory || '暴力'
     form.comment = ''
   } catch (error) {
     ElMessage.error(error.message)
@@ -179,8 +222,9 @@ async function handleSubmit() {
   submitting.value = true
   try {
     currentTask.value = await submitReview(currentTask.value.id, {
-      reviewerId: form.reviewerId,
-      finalResult: form.finalResult,
+      reviewerId: currentReviewerId(),
+      status: form.finalResult,
+      violationCategory: form.finalResult === '通过' ? null : form.violationCategory,
       comment: form.comment.trim()
     })
     reviewLogs.value = await fetchReviewLogs(currentTask.value.id)
@@ -193,8 +237,20 @@ async function handleSubmit() {
   }
 }
 
+function currentReviewerId() {
+  const raw = localStorage.getItem('videoguard_user')
+  return raw ? JSON.parse(raw).id : 2
+}
+
 function formatDate(value) {
   return value ? new Date(value).toLocaleString() : '-'
+}
+
+function formatFileSize(value) {
+  if (!value) {
+    return '-'
+  }
+  return `${(value / 1024 / 1024).toFixed(2)} MB`
 }
 
 watch(filters, async () => {

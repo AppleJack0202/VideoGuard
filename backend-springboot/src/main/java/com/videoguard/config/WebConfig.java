@@ -4,6 +4,7 @@ import java.nio.file.Path;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -11,9 +12,11 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class WebConfig implements WebMvcConfigurer {
 
     private final String uploadsDir;
+    private final AuthInterceptor authInterceptor;
 
-    public WebConfig(@Value("${videoguard.uploads-dir:uploads}") String uploadsDir) {
+    public WebConfig(@Value("${videoguard.uploads-dir:uploads}") String uploadsDir, AuthInterceptor authInterceptor) {
         this.uploadsDir = uploadsDir;
+        this.authInterceptor = authInterceptor;
     }
 
     @Override
@@ -31,5 +34,12 @@ public class WebConfig implements WebMvcConfigurer {
                 .allowedHeaders("*")
                 .allowCredentials(false)
                 .maxAge(3600);
+    }
+
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(authInterceptor)
+                .addPathPatterns("/api/**")
+                .excludePathPatterns("/api/health", "/api/auth/login", "/api/auth/register");
     }
 }

@@ -9,7 +9,9 @@ public class ReviewSubmitRequest {
     private Long reviewerId;
 
     @NotBlank
-    private String finalResult;
+    private String status;
+
+    private String violationCategory;
 
     @NotBlank
     private String comment;
@@ -22,12 +24,20 @@ public class ReviewSubmitRequest {
         this.reviewerId = reviewerId;
     }
 
-    public String getFinalResult() {
-        return finalResult;
+    public String getStatus() {
+        return status;
     }
 
-    public void setFinalResult(String finalResult) {
-        this.finalResult = finalResult;
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public String getViolationCategory() {
+        return violationCategory;
+    }
+
+    public void setViolationCategory(String violationCategory) {
+        this.violationCategory = violationCategory;
     }
 
     public String getComment() {
