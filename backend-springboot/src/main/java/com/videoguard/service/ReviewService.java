@@ -22,6 +22,12 @@ import org.springframework.util.StringUtils;
 @Service
 public class ReviewService {
 
+    private static final List<String> REVIEW_TASK_STATUSES = List.of(
+            WorkflowConstants.STATUS_MANUAL_REVIEWING,
+            WorkflowConstants.STATUS_PASSED,
+            WorkflowConstants.STATUS_REJECTED,
+            WorkflowConstants.STATUS_APPEAL_PENDING);
+
     private final VideoRepository videoRepository;
     private final ReviewLogRepository reviewLogRepository;
     private final UserRepository userRepository;
@@ -45,7 +51,7 @@ public class ReviewService {
             if (StringUtils.hasText(status)) {
                 predicates.add(criteriaBuilder.equal(root.get("status"), status));
             } else {
-                predicates.add(root.get("status").in(WorkflowConstants.REVIEWABLE_STATUSES));
+                predicates.add(root.get("status").in(REVIEW_TASK_STATUSES));
             }
             if (StringUtils.hasText(aiRiskLevel)) {
                 predicates.add(criteriaBuilder.equal(root.get("aiRiskLevel"), aiRiskLevel));
@@ -74,8 +80,8 @@ public class ReviewService {
         if (reviewerId == null) {
             throw new IllegalArgumentException("Current reviewer is required.");
         }
-        if (!WorkflowConstants.STATUS_MANUAL_REVIEWING.equals(video.getStatus())) {
-            throw new IllegalArgumentException("Review has already been submitted or the video is not in manual review.");
+        if (!REVIEW_TASK_STATUSES.contains(video.getStatus())) {
+            throw new IllegalArgumentException("Video is not in review scope.");
         }
         String afterStatus = normalizeStatus(request.getStatus());
         String violationCategory = normalizeViolationCategory(request.getViolationCategory(), afterStatus);

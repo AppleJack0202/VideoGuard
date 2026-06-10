@@ -20,7 +20,6 @@
         <el-option label="政治敏感" value="政治敏感" />
       </el-select>
       <el-button :loading="loading" @click="loadVideos">刷新</el-button>
-      <el-button type="primary" @click="router.push('/upload')">上传视频</el-button>
     </div>
 
     <el-table :data="videos" v-loading="loading" border>

@@ -17,35 +17,26 @@
       </div>
 
       <div class="panel page">
-        <div class="metric-grid detail-metrics">
-          <div class="metric">
-            <span>处理状态</span>
-            <strong>{{ video?.status || '-' }}</strong>
-          </div>
-          <div v-if="canViewAuditEvidence" class="metric">
-            <span>风险等级</span>
-            <strong>{{ video?.aiRiskLevel || '-' }}</strong>
-          </div>
-          <div v-if="canViewAuditEvidence" class="metric">
-            <span>风险分</span>
-            <strong>{{ video?.aiRiskScore ?? '-' }}</strong>
-          </div>
-          <div v-if="canViewAuditEvidence" class="metric">
-            <span>违规类别</span>
-            <strong>{{ video?.violationCategory || '-' }}</strong>
-          </div>
-          <div class="metric">
-            <span>时长</span>
-            <strong>{{ video?.duration ?? '-' }}s</strong>
-          </div>
-        </div>
+        <el-descriptions title="视频信息" :column="1" border>
+          <el-descriptions-item label="处理状态">{{ video?.status || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="时长">{{ formatDuration(video?.duration) }}</el-descriptions-item>
+          <el-descriptions-item label="分辨率">{{ formatResolution(video) }}</el-descriptions-item>
+          <el-descriptions-item label="文件大小">{{ formatFileSize(video?.fileSize) }}</el-descriptions-item>
+          <el-descriptions-item v-if="canViewAuditEvidence" label="上传者">
+            {{ formatUploader(video) }}
+          </el-descriptions-item>
+          <el-descriptions-item label="上传时间">{{ formatDate(video?.createdAt) }}</el-descriptions-item>
+        </el-descriptions>
 
-        <el-descriptions v-if="canViewAuditEvidence && video?.aiResult" :column="1" border>
-          <el-descriptions-item label="最终风险分">{{ video.aiResult.finalScore ?? '-' }}</el-descriptions-item>
+        <el-descriptions v-if="canViewAuditEvidence && video?.aiResult" title="审核信息" :column="1" border>
           <el-descriptions-item label="AI 风险等级">{{ video.aiResult.riskLevel || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="违规类别">{{ video.violationCategory || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="最终风险分">{{ video.aiResult.finalScore ?? '-' }}</el-descriptions-item>
           <el-descriptions-item label="文本风险分">{{ video.aiResult.textScore ?? '-' }}</el-descriptions-item>
           <el-descriptions-item label="图像风险分">{{ video.aiResult.imageScore ?? '-' }}</el-descriptions-item>
-          <el-descriptions-item label="ASR 文本">{{ video.aiResult.asrText || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="ASR 文本">
+            <el-button link type="primary" @click="router.push(`/videos/${video.id}/asr`)">查看 ASR 文本</el-button>
+          </el-descriptions-item>
         </el-descriptions>
       </div>
     </div>
@@ -91,11 +82,12 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { analyzeVideo, fetchVideoDetail, toAssetUrl } from '../api/client'
 
 const route = useRoute()
+const router = useRouter()
 const video = ref(null)
 const loading = ref(false)
 const analyzing = ref(false)
@@ -132,6 +124,35 @@ async function handleAnalyze() {
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleString() : '-'
+}
+
+function formatDuration(value) {
+  return value === null || value === undefined ? '-' : `${value}s`
+}
+
+function formatResolution(value) {
+  if (!value?.width || !value?.height) {
+    return '-'
+  }
+  return `${value.width} x ${value.height}`
+}
+
+function formatFileSize(value) {
+  if (!value) {
+    return '-'
+  }
+  return `${(value / 1024 / 1024).toFixed(2)} MB`
+}
+
+function formatUploader(value) {
+  if (!value?.uploaderId) {
+    return '-'
+  }
+  const account = value.uploaderUsername || '-'
+  const displayName = value.uploaderDisplayName && value.uploaderDisplayName !== value.uploaderUsername
+    ? `（${value.uploaderDisplayName}）`
+    : ''
+  return `#${value.uploaderId} / ${account}${displayName}`
 }
 
 onMounted(loadDetail)

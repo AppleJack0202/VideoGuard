@@ -192,6 +192,7 @@ public class VideoService {
         Video video = videoRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Video not found: " + id));
         VideoDetailResponse response = VideoDetailResponse.from(video);
+        applyUploader(response, video.getUploaderId());
         response.setFrames(videoFrameRepository.findByVideoIdOrderByTimestampSecAsc(id)
                 .stream()
                 .map(VideoFrameResponse::from)
@@ -223,6 +224,7 @@ public class VideoService {
             throw new IllegalArgumentException("Video not found: " + id);
         }
         VideoDetailResponse response = VideoDetailResponse.from(video);
+        applyUploader(response, video.getUploaderId());
         response.setAiRiskLevel(null);
         response.setAiRiskScore(null);
         response.setViolationCategory(null);
@@ -233,6 +235,16 @@ public class VideoService {
         response.setSensitiveHits(List.of());
         response.setReviewLogs(List.of());
         return response;
+    }
+
+    private void applyUploader(VideoDetailResponse response, Long uploaderId) {
+        if (uploaderId == null) {
+            return;
+        }
+        userRepository.findById(uploaderId).ifPresent(user -> {
+            response.setUploaderUsername(user.getUsername());
+            response.setUploaderDisplayName(user.getDisplayName());
+        });
     }
 
     @Transactional

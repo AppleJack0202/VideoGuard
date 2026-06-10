@@ -223,6 +223,8 @@ Response:
 {
   "id": 1,
   "uploaderId": 3,
+  "uploaderUsername": "user",
+  "uploaderDisplayName": "普通用户一号",
   "title": "正常视频",
   "description": "课程演示视频",
   "originalFilename": "normal.mp4",
@@ -324,12 +326,12 @@ GET  /api/review/logs/{videoId}
 
 ### GET /api/review/tasks
 
-Returns videos that need manual review. By default, this endpoint returns videos with status `复审中`.
+Returns videos in the review workbench. By default, this endpoint returns videos with status `复审中`, `通过`, `驳回`, or `待申诉`.
 
 Query parameters:
 
 ```text
-status: optional, for example 复审中
+status: optional, one of 复审中, 通过, 驳回, 待申诉
 aiRiskLevel: optional, for example 可疑
 violationCategory: optional, for example 暴力
 ```
@@ -358,7 +360,7 @@ status = 待申诉 -> finalResult = 可疑
 status = 驳回   -> finalResult = 违规
 ```
 
-The endpoint reads the reviewer from JWT, updates `video.status`, `video.final_result`, `video.violation_category`, `video.final_comment`, and appends one row to `review_log`. A video can be submitted only while its status is `复审中`.
+The endpoint reads the reviewer from JWT, updates `video.status`, `video.final_result`, `video.violation_category`, `video.final_comment`, and appends one row to `review_log`. A video can be submitted while its status is `复审中`, `通过`, `驳回`, or `待申诉`.
 
 ### GET /api/review/logs/{videoId}
 

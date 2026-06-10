@@ -14,13 +14,6 @@
       <el-form-item label="密码">
         <el-input v-model="form.password" type="password" placeholder="请输入密码" show-password />
       </el-form-item>
-      <el-form-item v-if="mode === 'login'" label="演示账号">
-        <div class="demo-account-list">
-          <el-button size="small" @click="useDemoAccount('admin')">系统管理员</el-button>
-          <el-button size="small" @click="useDemoAccount('reviewer')">审核员一号</el-button>
-          <el-button size="small" @click="useDemoAccount('user')">普通用户一号</el-button>
-        </div>
-      </el-form-item>
       <el-form-item>
         <el-button type="primary" :loading="loading" @click="submitAuth">{{ mode === 'login' ? '登录' : '注册' }}</el-button>
       </el-form-item>
@@ -38,9 +31,9 @@ const router = useRouter()
 const mode = ref('login')
 const loading = ref(false)
 const form = reactive({
-  username: 'reviewer',
+  username: '',
   displayName: '',
-  password: '123456'
+  password: ''
 })
 
 async function submitAuth() {
@@ -80,10 +73,5 @@ function defaultRoute(role) {
     return '/review'
   }
   return '/dashboard'
-}
-
-function useDemoAccount(username) {
-  form.username = username
-  form.password = '123456'
 }
 </script>

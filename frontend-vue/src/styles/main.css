@@ -89,18 +89,18 @@ body {
   font-size: 26px;
 }
 
+.metric .metric-value-compact {
+  overflow-wrap: anywhere;
+  font-size: 18px;
+  line-height: 1.35;
+}
+
 .form-compact {
   max-width: 680px;
 }
 
 .login-panel {
   max-width: 430px;
-}
-
-.demo-account-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
 }
 
 .toolbar {
@@ -168,10 +168,20 @@ body {
   background: #f3f4f6;
 }
 
-.review-workbench {
-  display: grid;
-  grid-template-columns: minmax(360px, 0.9fr) minmax(520px, 1.6fr);
-  gap: 16px;
+.asr-text-block {
+  min-height: 320px;
+  margin: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+  padding: 16px;
+  color: #1f2937;
+  font-family: "Microsoft YaHei", Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.7;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .chart-grid {
@@ -189,7 +199,6 @@ body {
   .detail-grid,
   .metric-grid,
   .detail-metrics,
-  .review-workbench,
   .chart-grid {
     grid-template-columns: 1fr;
   }
