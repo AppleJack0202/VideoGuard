@@ -8,6 +8,8 @@ public class VideoDetailResponse {
 
     private Long id;
     private Long uploaderId;
+    private String uploaderUsername;
+    private String uploaderDisplayName;
     private String title;
     private String description;
     private String originalFilename;
@@ -75,6 +77,22 @@ public class VideoDetailResponse {
 
     public void setUploaderId(Long uploaderId) {
         this.uploaderId = uploaderId;
+    }
+
+    public String getUploaderUsername() {
+        return uploaderUsername;
+    }
+
+    public void setUploaderUsername(String uploaderUsername) {
+        this.uploaderUsername = uploaderUsername;
+    }
+
+    public String getUploaderDisplayName() {
+        return uploaderDisplayName;
+    }
+
+    public void setUploaderDisplayName(String uploaderDisplayName) {
+        this.uploaderDisplayName = uploaderDisplayName;
     }
 
     public String getTitle() {
