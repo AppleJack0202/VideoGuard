@@ -919,3 +919,37 @@
 - 已执行 `npm run build`，前端构建通过。
 - 已检查 `/videos`、`/sensitive-words`、`/review`、`/users`、`/my-uploads`，本地页面均返回 `200`。
 - 已执行 `git diff --check`，无空白格式错误，仅有 Windows 换行提示。
+
+## 2026-06-11 抽帧图片访问修复与分页展示
+
+### 本次目标
+
+- 检查详情页“视频抽帧”区域图片破图问题。
+- 将抽帧列表从一次性全部展示改为分页展示，降低详情页视觉负担。
+
+### 问题定位
+
+- 本地 `uploads/frames/12` 下已经生成抽帧 jpg 文件，说明 FastAPI 抽帧功能本身有产物。
+- 访问 `http://localhost:8081/uploads/frames/12/frame_0000.jpg` 返回 `404`，说明问题在 SpringBoot 静态资源目录映射。
+- 原配置使用 `../uploads`，当 SpringBoot 从项目根目录启动时会指向错误目录。
+
+### 完成工作
+
+- 后端：
+  - 新增 `UploadPathResolver`，统一解析上传目录。
+  - `WebConfig` 和 `VideoService` 改为使用统一解析后的上传目录。
+  - 默认上传目录改为项目根目录下的 `uploads`。
+  - 保证从项目根目录或 `backend-springboot` 目录启动时，都能找到同一份上传文件。
+- 前端：
+  - 视频详情页抽帧区域改为分页展示，每页 12 帧。
+  - 复审详情页关键帧区域同步改为分页展示。
+  - 增加“共 N 帧”提示和空状态提示。
+
+### 验证结果
+
+- 已执行 `npm run build`，前端构建通过。
+- 已执行 `mvn -DskipTests package`，后端打包通过。
+- 已重启 SpringBoot，新 PID 为 `32744`。
+- 已验证 `http://localhost:8081/api/health` 返回 `{"status":"ok"}`。
+- 已验证 `http://localhost:8081/uploads/frames/12/frame_0000.jpg` 返回 `200 image/jpeg`。
+- 已通过管理员登录后请求 `GET /api/videos/12`，确认接口返回 `59` 帧，第一帧地址为 `/uploads/frames/12/frame_0000.jpg`。

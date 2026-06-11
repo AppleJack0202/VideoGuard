@@ -55,13 +55,25 @@
     </div>
 
     <div v-if="canViewAuditEvidence" class="panel page">
-      <h3>视频抽帧</h3>
-      <div class="frame-grid">
-        <div v-for="frame in video?.frames || []" :key="frame.id" class="frame-item">
+      <div class="section-header">
+        <h3>视频抽帧</h3>
+        <span class="section-meta">共 {{ frames.length }} 帧</span>
+      </div>
+      <el-empty v-if="!frames.length" description="暂无抽帧" />
+      <div v-else class="frame-grid">
+        <div v-for="frame in pagedFrames" :key="frame.id" class="frame-item">
           <img :src="toAssetUrl(frame.frameUrl)" :alt="`frame-${frame.id}`" />
           <span>{{ frame.timestampSec ?? 0 }}s</span>
         </div>
       </div>
+      <el-pagination
+        v-if="frames.length > framePageSize"
+        v-model:current-page="frameCurrentPage"
+        class="frame-pagination"
+        layout="total, prev, pager, next, jumper"
+        :page-size="framePageSize"
+        :total="frames.length"
+      />
     </div>
 
     <div v-if="canViewAuditEvidence" class="panel page">
@@ -83,7 +95,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
@@ -94,12 +106,19 @@ const router = useRouter()
 const video = ref(null)
 const loading = ref(false)
 const analyzing = ref(false)
+const framePageSize = 12
+const frameCurrentPage = ref(1)
 const currentUser = computed(() => {
   const raw = localStorage.getItem('videoguard_user')
   return raw ? JSON.parse(raw) : null
 })
 const canViewAuditEvidence = computed(() => ['审核员', '管理员'].includes(currentUser.value?.role))
 const isAdmin = computed(() => currentUser.value?.role === '管理员')
+const frames = computed(() => video.value?.frames || [])
+const pagedFrames = computed(() => {
+  const start = (frameCurrentPage.value - 1) * framePageSize
+  return frames.value.slice(start, start + framePageSize)
+})
 
 async function loadDetail() {
   loading.value = true
@@ -157,6 +176,12 @@ function formatUploader(value) {
     : ''
   return `#${value.uploaderId} / ${account}${displayName}`
 }
+
+watch(frames, () => {
+  if ((frameCurrentPage.value - 1) * framePageSize >= frames.value.length) {
+    frameCurrentPage.value = 1
+  }
+})
 
 onMounted(loadDetail)
 </script>

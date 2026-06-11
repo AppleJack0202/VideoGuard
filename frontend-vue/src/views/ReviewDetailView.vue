@@ -66,13 +66,25 @@
     </div>
 
     <div class="panel page">
-      <h3>关键帧缩略图</h3>
-      <div class="frame-grid">
-        <div v-for="frame in task?.frames || []" :key="frame.id" class="frame-item">
+      <div class="section-header">
+        <h3>关键帧缩略图</h3>
+        <span class="section-meta">共 {{ frames.length }} 帧</span>
+      </div>
+      <el-empty v-if="!frames.length" description="暂无抽帧" />
+      <div v-else class="frame-grid">
+        <div v-for="frame in pagedFrames" :key="frame.id" class="frame-item">
           <img :src="toAssetUrl(frame.frameUrl)" :alt="`frame-${frame.id}`" />
           <span>{{ frame.timestampSec ?? 0 }}s / {{ frame.riskScore ?? 0 }}分</span>
         </div>
       </div>
+      <el-pagination
+        v-if="frames.length > framePageSize"
+        v-model:current-page="frameCurrentPage"
+        class="frame-pagination"
+        layout="total, prev, pager, next, jumper"
+        :page-size="framePageSize"
+        :total="frames.length"
+      />
     </div>
 
     <div class="panel page">
@@ -94,7 +106,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Back, Refresh } from '@element-plus/icons-vue'
@@ -106,6 +118,13 @@ const task = ref(null)
 const reviewLogs = ref([])
 const loading = ref(false)
 const submitting = ref(false)
+const framePageSize = 12
+const frameCurrentPage = ref(1)
+const frames = computed(() => task.value?.frames || [])
+const pagedFrames = computed(() => {
+  const start = (frameCurrentPage.value - 1) * framePageSize
+  return frames.value.slice(start, start + framePageSize)
+})
 
 const form = reactive({
   status: '通过',
@@ -161,6 +180,12 @@ function normalizeSubmitStatus(status) {
 function formatDate(value) {
   return value ? new Date(value).toLocaleString() : '-'
 }
+
+watch(frames, () => {
+  if ((frameCurrentPage.value - 1) * framePageSize >= frames.value.length) {
+    frameCurrentPage.value = 1
+  }
+})
 
 onMounted(loadTask)
 </script>

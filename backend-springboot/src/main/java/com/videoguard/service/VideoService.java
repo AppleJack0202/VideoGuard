@@ -10,6 +10,7 @@ import com.videoguard.dto.VideoDetailResponse;
 import com.videoguard.dto.VideoFrameResponse;
 import com.videoguard.dto.VideoListItemResponse;
 import com.videoguard.dto.VideoUploadResponse;
+import com.videoguard.config.UploadPathResolver;
 import com.videoguard.entity.AiReviewResult;
 import com.videoguard.entity.SensitiveHit;
 import com.videoguard.entity.SensitiveWord;
@@ -82,7 +83,7 @@ public class VideoService {
         this.userRepository = userRepository;
         this.restClient = restClientBuilder.baseUrl(aiServiceBaseUrl).build();
         this.objectMapper = objectMapper;
-        this.uploadsRoot = Path.of(uploadsDir).toAbsolutePath().normalize();
+        this.uploadsRoot = UploadPathResolver.resolve(uploadsDir);
         this.projectRoot = uploadsRoot.getParent();
     }
 
