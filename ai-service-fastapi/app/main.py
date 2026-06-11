@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
+import tempfile
+from functools import lru_cache
 from pathlib import Path
 
 import cv2
@@ -21,6 +24,10 @@ class MetadataRequest(BaseModel):
 
 class FrameExtractRequest(MetadataRequest):
     frame_interval_sec: int = Field(default=5, ge=1)
+
+
+class AsrRequest(MetadataRequest):
+    language: str | None = Field(default=None, description="ISO language code, e.g. zh. Empty means auto detect.")
 
 
 class SensitiveWord(BaseModel):
@@ -73,6 +80,14 @@ def extract_frames(request: FrameExtractRequest) -> dict:
     return {"video_id": request.video_id, "frames": frames}
 
 
+@app.post("/ai/asr")
+def asr(request: AsrRequest) -> dict:
+    video_path = resolve_video_path(request.video_path)
+    ensure_file_exists(video_path)
+    asr_text = transcribe_video_audio(video_path, language=request.language, fail_silently=False)
+    return {"video_id": request.video_id, "asr_text": asr_text}
+
+
 @app.post("/ai/text-detect")
 def text_detect(request: TextDetectRequest) -> dict:
     hits: list[dict] = []
@@ -123,7 +138,7 @@ def analyze(request: AnalyzeRequest) -> dict:
 
     video_metadata = extract_metadata(video_path)
     frame_result = extract_video_frames(video_path, request.video_id, request.frame_interval_sec)
-    asr_text = ""
+    asr_text = transcribe_video_audio(video_path, fail_silently=True)
     text_result = text_detect(
         TextDetectRequest(
             video_id=request.video_id,
@@ -202,6 +217,95 @@ def extract_metadata(video_path: Path) -> dict:
     if shutil.which("ffprobe"):
         return extract_metadata_by_ffprobe(video_path)
     return extract_metadata_by_opencv(video_path)
+
+
+def transcribe_video_audio(video_path: Path, language: str | None = None, fail_silently: bool = False) -> str:
+    if not is_asr_enabled():
+        return ""
+    try:
+        audio_path = extract_audio_for_asr(video_path)
+        try:
+            model = get_asr_model(
+                os.getenv("VIDEOGUARD_ASR_MODEL", "tiny"),
+                os.getenv("VIDEOGUARD_ASR_DEVICE", "cpu"),
+                os.getenv("VIDEOGUARD_ASR_COMPUTE_TYPE", "int8"),
+            )
+            selected_language = language if language is not None else os.getenv("VIDEOGUARD_ASR_LANGUAGE", "zh")
+            if selected_language in {"", "auto", "AUTO"}:
+                selected_language = None
+            segments, _ = model.transcribe(
+                str(audio_path),
+                language=selected_language,
+                vad_filter=True,
+                beam_size=5,
+            )
+            return normalize_asr_text(segment.text for segment in segments)
+        finally:
+            cleanup_temp_audio(audio_path)
+    except HTTPException:
+        if fail_silently:
+            return ""
+        raise
+    except Exception as exc:
+        if fail_silently:
+            return ""
+        raise HTTPException(status_code=500, detail=f"ASR transcription failed: {exc}") from exc
+
+
+def is_asr_enabled() -> bool:
+    return os.getenv("VIDEOGUARD_ASR_ENABLED", "true").lower() not in {"0", "false", "no", "off"}
+
+
+def extract_audio_for_asr(video_path: Path) -> Path:
+    if not shutil.which("ffmpeg"):
+        raise HTTPException(status_code=500, detail="ffmpeg is required for ASR audio extraction.")
+
+    temp_dir = Path(tempfile.mkdtemp(prefix="videoguard-asr-"))
+    audio_path = temp_dir / "audio.wav"
+    command = [
+        "ffmpeg",
+        "-y",
+        "-v",
+        "error",
+        "-i",
+        str(video_path),
+        "-vn",
+        "-ac",
+        "1",
+        "-ar",
+        "16000",
+        "-f",
+        "wav",
+        str(audio_path),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True)
+    if result.returncode != 0 or not audio_path.exists() or audio_path.stat().st_size == 0:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        detail = result.stderr.strip() or "No audio stream could be extracted."
+        raise HTTPException(status_code=400, detail=f"ASR audio extraction failed: {detail}")
+    return audio_path
+
+
+@lru_cache(maxsize=4)
+def get_asr_model(model_size: str, device: str, compute_type: str):
+    try:
+        from faster_whisper import WhisperModel
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="ASR dependency is missing. Install faster-whisper from ai-service-fastapi/requirements.txt.",
+        ) from exc
+
+    model_dir = os.getenv("VIDEOGUARD_ASR_MODEL_DIR")
+    return WhisperModel(model_size, device=device, compute_type=compute_type, download_root=model_dir)
+
+
+def normalize_asr_text(parts) -> str:
+    return "\n".join(part.strip() for part in parts if part and part.strip())
+
+
+def cleanup_temp_audio(audio_path: Path) -> None:
+    shutil.rmtree(audio_path.parent, ignore_errors=True)
 
 
 def extract_metadata_by_ffprobe(video_path: Path) -> dict:

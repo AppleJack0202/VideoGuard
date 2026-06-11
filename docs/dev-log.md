@@ -984,3 +984,37 @@
 - 已验证视频文件 `HEAD /uploads/videos/d0405dcf-101b-4721-852e-1374db6bda98.mp4` 返回 `200`，`Content-Type` 为 `video/mp4`。
 - 已验证视频 Range 请求返回 `206`，支持浏览器播放器分段加载。
 - 已复查抽帧图片仍返回 `200 image/jpeg`。
+
+## 2026-06-11 ASR 语音转文字接入
+
+### 本次目标
+
+- 从高级 AI 能力中优先接入 ASR 语音转文字。
+- 让 ASR 文本进入现有敏感词检测和风险评分链路。
+
+### 完成工作
+
+- AI 服务：
+  - 新增 `POST /ai/asr` 接口，支持按视频路径单独执行语音转文字。
+  - `/ai/analyze` 不再使用空字符串作为 ASR 文本，而是调用真实 ASR 转写。
+  - 使用 `ffmpeg` 从视频中提取 16kHz 单声道 wav 音频。
+  - 使用 `faster-whisper` 执行本地 Whisper 转写。
+  - 支持环境变量配置：
+    - `VIDEOGUARD_ASR_MODEL`，默认 `tiny`。
+    - `VIDEOGUARD_ASR_LANGUAGE`，默认 `zh`，可设为 `auto`。
+    - `VIDEOGUARD_ASR_ENABLED=false` 可临时关闭综合分析中的 ASR。
+  - 综合分析中 ASR 失败会降级为空文本，避免单个模型问题阻断整体视频审核。
+- 依赖和文档：
+  - `ai-service-fastapi/requirements.txt` 新增 `faster-whisper` 和 `requests`。
+  - `docs/api.md` 新增 `/ai/asr` 接口说明。
+
+### 验证结果
+
+- 已执行 `python -m py_compile app/main.py`，AI 服务代码语法检查通过。
+- 已执行 `pip install -r requirements.txt`，ASR 依赖安装成功。
+- 已用项目 `.venv` 重启 FastAPI，新 PID 为 `36308`。
+- 已验证 `http://localhost:8000/ai/health` 返回 `{"status":"ok"}`。
+- 已调用 `/ai/asr` 分析视频 12，成功返回中文语音转写文本。
+- 已调用 `/ai/text-detect`，使用 ASR 文本命中词“华为”，返回 `source_type=ASR`、`asr_score=40`。
+- 已调用 `/ai/analyze`，确认 ASR 命中进入综合评分：`asr_score=40`、`final_score=40`、`risk_level=SUSPICIOUS`。
+- 已执行 `npm run build` 和 `mvn -DskipTests package`，前端与后端构建通过。

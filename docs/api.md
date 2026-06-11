@@ -589,6 +589,34 @@ Request:
 }
 ```
 
+### POST /ai/asr
+
+Request:
+
+```json
+{
+  "video_id": 1,
+  "video_path": "D:/projects/video-guard/uploads/videos/demo.mp4",
+  "language": "zh"
+}
+```
+
+Response:
+
+```json
+{
+  "video_id": 1,
+  "asr_text": "识别到的语音文本"
+}
+```
+
+Notes:
+
+- ASR uses `faster-whisper`.
+- Default model is `tiny`; override with `VIDEOGUARD_ASR_MODEL`, for example `base` or `small`.
+- Set `VIDEOGUARD_ASR_LANGUAGE=auto` or request `"language": "auto"` for language auto-detection.
+- Set `VIDEOGUARD_ASR_ENABLED=false` to temporarily skip ASR in integrated analysis.
+
 ### POST /ai/image-detect
 
 Request:
@@ -639,7 +667,7 @@ Response:
     "file_size": 10485760
   },
   "frames": [],
-  "asr_text": "",
+  "asr_text": "识别到的语音文本",
   "text_hits": [],
   "scores": {
     "text_score": 0,
