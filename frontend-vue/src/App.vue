@@ -32,6 +32,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { clearSession, getStoredUser, saveStoredUser } from './utils/session'
 
 const route = useRoute()
 const router = useRouter()
@@ -40,16 +41,14 @@ const currentUser = ref(null)
 const routeTitle = computed(() => route.meta.title || 'VideoGuard')
 
 function loadUser() {
-  const raw = localStorage.getItem('videoguard_user')
-  currentUser.value = raw ? normalizeUser(JSON.parse(raw)) : null
+  currentUser.value = getStoredUser()
   if (currentUser.value) {
-    localStorage.setItem('videoguard_user', JSON.stringify(currentUser.value))
+    saveStoredUser(currentUser.value)
   }
 }
 
 function logout() {
-  localStorage.removeItem('videoguard_user')
-  localStorage.removeItem('videoguard_token')
+  clearSession()
   loadUser()
   router.push('/login')
 }
@@ -78,19 +77,6 @@ const menuItems = computed(() => {
   }
   return []
 })
-
-function normalizeUser(user) {
-  const roleMap = {
-    USER: '一般用户',
-    REVIEWER: '审核员',
-    ADMIN: '管理员'
-  }
-  return {
-    ...user,
-    displayName: user.displayName || user.username,
-    role: roleMap[user.role] || user.role
-  }
-}
 
 onMounted(() => {
   loadUser()

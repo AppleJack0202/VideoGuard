@@ -100,6 +100,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import { analyzeVideo, fetchVideoDetail, toAssetUrl } from '../api/client'
+import { getStoredUser } from '../utils/session'
 
 const route = useRoute()
 const router = useRouter()
@@ -108,10 +109,7 @@ const loading = ref(false)
 const analyzing = ref(false)
 const framePageSize = 12
 const frameCurrentPage = ref(1)
-const currentUser = computed(() => {
-  const raw = localStorage.getItem('videoguard_user')
-  return raw ? JSON.parse(raw) : null
-})
+const currentUser = computed(() => getStoredUser())
 const canViewAuditEvidence = computed(() => ['审核员', '管理员'].includes(currentUser.value?.role))
 const isAdmin = computed(() => currentUser.value?.role === '管理员')
 const frames = computed(() => video.value?.frames || [])

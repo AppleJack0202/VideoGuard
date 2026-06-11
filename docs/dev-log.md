@@ -1050,3 +1050,28 @@
 - 已验证审核员 `PUT/DELETE /api/sensitive-words/{id}` 返回 `403`。
 - 已验证管理员可删除测试敏感词。
 - 已用审核员调用 `POST /api/videos/12/asr/refresh`，返回 `200`，视频 12 回填 ASR 文本长度 `1775`。
+
+## 2026-06-11 前端白屏容错修复
+
+### 本次目标
+
+- 处理浏览器访问 `localhost:5173` 页面空白的问题。
+
+### 问题定位
+
+- Vite 前端服务可正常返回 HTML，`localhost:5173` 返回 `200`。
+- 页面白屏更可能是浏览器本地 `localStorage` 中 `videoguard_user` 数据损坏或格式不兼容，导致 `JSON.parse` 抛错，Vue 启动被中断。
+
+### 完成工作
+
+- 新增 `frontend-vue/src/utils/session.js`。
+- 统一封装用户会话读取、保存、清理逻辑。
+- `App.vue`、路由守卫、视频详情页、敏感词页改用容错读取。
+- 如果本地用户缓存损坏，会自动清理 `videoguard_user` 和 `videoguard_token`，并回到登录页，避免整页白屏。
+- 已重启 Vite 前端服务，新监听进程为 `13436`。
+
+### 验证结果
+
+- 已执行 `npm run build`，前端构建通过。
+- 已验证 `http://localhost:5173` 返回 `200`。
+- 已重启前端服务并确认 `5173` 端口正常监听。

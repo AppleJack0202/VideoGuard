@@ -10,6 +10,7 @@ import UploadView from '../views/UploadView.vue'
 import UsersView from '../views/UsersView.vue'
 import VideoDetailView from '../views/VideoDetailView.vue'
 import VideosView from '../views/VideosView.vue'
+import { getStoredUser } from '../utils/session'
 
 const routes = [
   { path: '/', redirect: '/login' },
@@ -35,9 +36,8 @@ router.beforeEach((to) => {
   if (to.path === '/login') {
     return true
   }
-  const raw = localStorage.getItem('videoguard_user')
   const token = localStorage.getItem('videoguard_token')
-  const user = raw ? normalizeUser(JSON.parse(raw)) : null
+  const user = getStoredUser()
   if (!user || !token) {
     return '/login'
   }
@@ -55,16 +55,3 @@ router.beforeEach((to) => {
 })
 
 export default router
-
-function normalizeUser(user) {
-  const roleMap = {
-    USER: '一般用户',
-    REVIEWER: '审核员',
-    ADMIN: '管理员'
-  }
-  return {
-    ...user,
-    displayName: user.displayName || user.username,
-    role: roleMap[user.role] || user.role
-  }
-}

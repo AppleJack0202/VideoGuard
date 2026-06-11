@@ -96,16 +96,14 @@ import {
   fetchSensitiveWords,
   updateSensitiveWord
 } from '../api/client'
+import { getStoredUser } from '../utils/session'
 
 const words = ref([])
 const loading = ref(false)
 const saving = ref(false)
 const dialogVisible = ref(false)
 const editingId = ref(null)
-const currentUser = computed(() => {
-  const raw = localStorage.getItem('videoguard_user')
-  return raw ? JSON.parse(raw) : null
-})
+const currentUser = computed(() => getStoredUser())
 const isAdmin = computed(() => currentUser.value?.role === '管理员')
 const dialogTitle = computed(() => {
   if (editingId.value) {
