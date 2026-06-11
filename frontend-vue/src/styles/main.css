@@ -110,6 +110,36 @@ body {
   gap: 10px;
 }
 
+.filter-toolbar {
+  align-items: flex-end;
+  gap: 12px;
+  padding: 2px 0 4px;
+}
+
+.filter-group {
+  display: grid;
+  gap: 6px;
+  min-width: 168px;
+}
+
+.filter-label {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.filter-control {
+  width: 168px;
+}
+
+.toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
 .detail-header {
   display: flex;
   justify-content: space-between;
@@ -205,5 +235,19 @@ body {
 
   .detail-header {
     display: grid;
+  }
+
+  .filter-group,
+  .filter-control {
+    width: 100%;
+  }
+
+  .filter-group {
+    min-width: min(100%, 240px);
+  }
+
+  .toolbar-actions {
+    width: 100%;
+    margin-left: 0;
   }
 }

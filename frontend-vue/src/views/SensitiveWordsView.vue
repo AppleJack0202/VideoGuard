@@ -1,17 +1,25 @@
 <template>
   <section class="panel page">
-    <div class="toolbar">
-      <el-select v-model="filters.category" clearable placeholder="敏感类别">
-        <el-option label="暴力" value="暴力" />
-        <el-option label="色情" value="色情" />
-        <el-option label="政治敏感" value="政治敏感" />
-      </el-select>
-      <el-select v-model="filters.enabled" clearable placeholder="启用状态">
-        <el-option label="启用" :value="1" />
-        <el-option label="停用" :value="0" />
-      </el-select>
-      <el-button :loading="loading" @click="loadWords">刷新</el-button>
-      <el-button type="primary" @click="openCreate">新增敏感词</el-button>
+    <div class="toolbar filter-toolbar">
+      <div class="filter-group">
+        <span class="filter-label">敏感类别</span>
+        <el-select v-model="filters.category" clearable placeholder="全部类别" class="filter-control">
+          <el-option label="暴力" value="暴力" />
+          <el-option label="色情" value="色情" />
+          <el-option label="政治敏感" value="政治敏感" />
+        </el-select>
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">启用状态</span>
+        <el-select v-model="filters.enabled" clearable placeholder="全部状态" class="filter-control">
+          <el-option label="启用" :value="1" />
+          <el-option label="停用" :value="0" />
+        </el-select>
+      </div>
+      <div class="toolbar-actions">
+        <el-button :icon="Refresh" :loading="loading" @click="loadWords">刷新</el-button>
+        <el-button type="primary" :icon="Plus" @click="openCreate">新增敏感词</el-button>
+      </div>
     </div>
 
     <el-table :data="words" v-loading="loading" border>
@@ -71,6 +79,7 @@
 <script setup>
 import { onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus, Refresh } from '@element-plus/icons-vue'
 import {
   createSensitiveWord,
   deleteSensitiveWord,
