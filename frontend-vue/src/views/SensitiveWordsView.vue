@@ -1,55 +1,49 @@
 <template>
-  <section class="panel page">
-    <div class="toolbar filter-toolbar">
-      <div class="filter-group">
-        <span class="filter-label">敏感类别</span>
-        <el-select v-model="filters.category" clearable placeholder="全部类别" class="filter-control">
-          <el-option label="暴力" value="暴力" />
-          <el-option label="色情" value="色情" />
-          <el-option label="政治敏感" value="政治敏感" />
-        </el-select>
-      </div>
-      <div class="filter-group">
-        <span class="filter-label">启用状态</span>
-        <el-select v-model="filters.enabled" clearable placeholder="全部状态" class="filter-control">
-          <el-option label="启用" :value="1" />
-          <el-option label="停用" :value="0" />
-        </el-select>
-      </div>
-      <div class="toolbar-actions">
-        <el-button :icon="Refresh" :loading="loading" @click="loadWords">刷新</el-button>
-        <el-button type="primary" :icon="Plus" @click="openCreate">
-          {{ isAdmin ? '新增敏感词' : '提交敏感词建议' }}
-        </el-button>
-      </div>
-    </div>
-
-    <el-table :data="words" v-loading="loading" border>
-      <el-table-column prop="word" label="敏感词" min-width="160" />
-      <el-table-column prop="category" label="类别" width="140" />
-      <el-table-column prop="weight" label="权重" width="100" />
-      <el-table-column prop="enabled" label="状态" width="110">
-        <template #default="{ row }">
-          <el-tag :type="row.enabled === 1 ? 'success' : 'info'">{{ row.enabled === 1 ? '启用' : '停用' }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="createdAt" label="创建时间" width="190">
-        <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
-      </el-table-column>
-      <el-table-column v-if="isAdmin" label="操作" width="220" fixed="right">
-        <template #default="{ row }">
-          <el-button size="small" @click="openEdit(row)">编辑</el-button>
-          <el-button
-            size="small"
-            :type="row.enabled === 1 ? 'warning' : 'success'"
-            @click="toggleEnabled(row)"
-          >
-            {{ row.enabled === 1 ? '停用' : '启用' }}
+  <section class="page word-page">
+    <div class="panel word-workbench">
+      <div class="word-toolbar">
+        <div class="filter-group">
+          <span class="filter-label">敏感类别</span>
+          <el-select v-model="filters.category" clearable placeholder="全部类别" class="filter-control">
+            <el-option label="暴力" value="暴力" />
+            <el-option label="色情" value="色情" />
+            <el-option label="政治敏感" value="政治敏感" />
+          </el-select>
+        </div>
+        <div class="toolbar-actions">
+          <el-button :icon="Refresh" :loading="loading" @click="loadWords">刷新</el-button>
+          <el-button type="primary" :icon="Plus" @click="openCreate">
+            {{ isAdmin ? '新增敏感词' : '提交敏感词建议' }}
           </el-button>
-          <el-button size="small" type="danger" @click="removeWord(row)">删除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+        </div>
+      </div>
+
+      <el-table class="word-table" :data="words" v-loading="loading" border>
+        <el-table-column prop="word" label="敏感词" min-width="220">
+          <template #default="{ row }">
+            <strong class="word-cell">{{ row.word }}</strong>
+          </template>
+        </el-table-column>
+        <el-table-column prop="category" label="类别" width="150">
+          <template #default="{ row }">
+            <el-tag effect="plain">{{ row.category }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="weight" label="权重" width="100" />
+        <el-table-column prop="createdAt" label="创建时间" width="190">
+          <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
+        </el-table-column>
+        <el-table-column v-if="isAdmin" label="操作" width="260" fixed="right">
+          <template #default="{ row }">
+            <div class="row-actions">
+              <el-button size="small" :icon="Edit" @click="openEdit(row)">编辑</el-button>
+              <el-button size="small" type="warning" :icon="CircleClose" @click="disableWord(row)">停用</el-button>
+              <el-button size="small" type="danger" :icon="Delete" @click="removeWord(row)">删除</el-button>
+            </div>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
 
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="460px">
       <el-form :model="form" label-width="82px">
@@ -74,9 +68,6 @@
         <el-form-item label="权重">
           <el-input-number v-model="form.weight" :min="1" :max="100" />
         </el-form-item>
-        <el-form-item v-if="isAdmin" label="启用">
-          <el-switch v-model="form.enabled" :active-value="1" :inactive-value="0" />
-        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -89,7 +80,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Refresh } from '@element-plus/icons-vue'
+import { CircleClose, Delete, Edit, Plus, Refresh } from '@element-plus/icons-vue'
 import {
   createSensitiveWord,
   deleteSensitiveWord,
@@ -113,8 +104,7 @@ const dialogTitle = computed(() => {
 })
 
 const filters = reactive({
-  category: '',
-  enabled: ''
+  category: ''
 })
 
 const form = reactive({
@@ -127,7 +117,10 @@ const form = reactive({
 async function loadWords() {
   loading.value = true
   try {
-    words.value = await fetchSensitiveWords(filters)
+    words.value = await fetchSensitiveWords({
+      category: filters.category,
+      enabled: 1
+    })
   } catch (error) {
     ElMessage.error(error.message)
   } finally {
@@ -192,15 +185,15 @@ async function saveWord() {
   }
 }
 
-async function toggleEnabled(row) {
+async function disableWord(row) {
   try {
     await updateSensitiveWord(row.id, {
       word: row.word,
       category: row.category,
       weight: row.weight,
-      enabled: row.enabled === 1 ? 0 : 1
+      enabled: 0
     })
-    ElMessage.success(row.enabled === 1 ? '已停用' : '已启用')
+    ElMessage.success('已停用')
     await loadWords()
   } catch (error) {
     ElMessage.error(error.message)

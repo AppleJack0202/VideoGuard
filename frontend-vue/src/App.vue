@@ -72,6 +72,7 @@ const menuItems = computed(() => {
       { path: '/dashboard', label: '统计看板' },
       { path: '/videos', label: '视频管理' },
       { path: '/sensitive-words', label: '敏感词管理' },
+      { path: '/sensitive-word-audit', label: '敏感词审核' },
       { path: '/users', label: '用户管理' }
     ]
   }
