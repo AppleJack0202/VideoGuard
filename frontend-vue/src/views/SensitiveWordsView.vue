@@ -18,7 +18,9 @@
       </div>
       <div class="toolbar-actions">
         <el-button :icon="Refresh" :loading="loading" @click="loadWords">刷新</el-button>
-        <el-button type="primary" :icon="Plus" @click="openCreate">新增敏感词</el-button>
+        <el-button type="primary" :icon="Plus" @click="openCreate">
+          {{ isAdmin ? '新增敏感词' : '提交敏感词建议' }}
+        </el-button>
       </div>
     </div>
 
@@ -34,7 +36,7 @@
       <el-table-column prop="createdAt" label="创建时间" width="190">
         <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="220" fixed="right">
+      <el-table-column v-if="isAdmin" label="操作" width="220" fixed="right">
         <template #default="{ row }">
           <el-button size="small" @click="openEdit(row)">编辑</el-button>
           <el-button
@@ -49,8 +51,16 @@
       </el-table-column>
     </el-table>
 
-    <el-dialog v-model="dialogVisible" :title="editingId ? '编辑敏感词' : '新增敏感词'" width="460px">
+    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="460px">
       <el-form :model="form" label-width="82px">
+        <el-alert
+          v-if="!isAdmin"
+          class="form-alert"
+          type="info"
+          show-icon
+          :closable="false"
+          title="审核员提交的敏感词默认停用，需管理员确认后才参与 AI 检测。"
+        />
         <el-form-item label="敏感词">
           <el-input v-model="form.word" placeholder="请输入敏感词" />
         </el-form-item>
@@ -64,7 +74,7 @@
         <el-form-item label="权重">
           <el-input-number v-model="form.weight" :min="1" :max="100" />
         </el-form-item>
-        <el-form-item label="启用">
+        <el-form-item v-if="isAdmin" label="启用">
           <el-switch v-model="form.enabled" :active-value="1" :inactive-value="0" />
         </el-form-item>
       </el-form>
@@ -77,7 +87,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh } from '@element-plus/icons-vue'
 import {
@@ -92,6 +102,17 @@ const loading = ref(false)
 const saving = ref(false)
 const dialogVisible = ref(false)
 const editingId = ref(null)
+const currentUser = computed(() => {
+  const raw = localStorage.getItem('videoguard_user')
+  return raw ? JSON.parse(raw) : null
+})
+const isAdmin = computed(() => currentUser.value?.role === '管理员')
+const dialogTitle = computed(() => {
+  if (editingId.value) {
+    return '编辑敏感词'
+  }
+  return isAdmin.value ? '新增敏感词' : '提交敏感词建议'
+})
 
 const filters = reactive({
   category: '',
@@ -118,11 +139,14 @@ async function loadWords() {
 
 function openCreate() {
   editingId.value = null
-  Object.assign(form, { word: '', category: '暴力', weight: 20, enabled: 1 })
+  Object.assign(form, { word: '', category: '暴力', weight: 20, enabled: isAdmin.value ? 1 : 0 })
   dialogVisible.value = true
 }
 
 function openEdit(row) {
+  if (!isAdmin.value) {
+    return
+  }
   editingId.value = row.id
   Object.assign(form, {
     word: row.word,
@@ -149,15 +173,19 @@ async function saveWord() {
       word: form.word.trim(),
       category: form.category.trim(),
       weight: form.weight,
-      enabled: form.enabled
+      enabled: isAdmin.value ? form.enabled : 0
     }
     if (editingId.value) {
+      if (!isAdmin.value) {
+        ElMessage.warning('审核员不能编辑敏感词')
+        return
+      }
       await updateSensitiveWord(editingId.value, payload)
     } else {
       await createSensitiveWord(payload)
     }
     dialogVisible.value = false
-    ElMessage.success('保存成功')
+    ElMessage.success(isAdmin.value ? '保存成功' : '敏感词建议已提交，等待管理员启用')
     await loadWords()
   } catch (error) {
     ElMessage.error(error.message)

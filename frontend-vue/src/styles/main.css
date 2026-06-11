@@ -99,6 +99,10 @@ body {
   max-width: 680px;
 }
 
+.form-alert {
+  margin-bottom: 16px;
+}
+
 .login-panel {
   max-width: 430px;
 }

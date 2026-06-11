@@ -47,6 +47,12 @@ export function analyzeVideo(videoId) {
   })
 }
 
+export function refreshVideoAsr(videoId) {
+  return request(`/api/videos/${videoId}/asr/refresh`, {
+    method: 'POST'
+  })
+}
+
 export function fetchVideos(filters = {}) {
   const params = new URLSearchParams()
   Object.entries(filters).forEach(([key, value]) => {

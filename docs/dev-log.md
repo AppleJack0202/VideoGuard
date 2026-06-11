@@ -1018,3 +1018,35 @@
 - 已调用 `/ai/text-detect`，使用 ASR 文本命中词“华为”，返回 `source_type=ASR`、`asr_score=40`。
 - 已调用 `/ai/analyze`，确认 ASR 命中进入综合评分：`asr_score=40`、`final_score=40`、`risk_level=SUSPICIOUS`。
 - 已执行 `npm run build` 和 `mvn -DskipTests package`，前端与后端构建通过。
+
+## 2026-06-11 审核员敏感词建议与 ASR 回填
+
+### 本次目标
+
+- 给审核员开放敏感词管理的有限权限，让一线审核员能提交新词建议。
+- 解决 ASR 页面仍显示“暂无 ASR 文本”的问题，让旧视频可以单独刷新 ASR。
+
+### 完成工作
+
+- 敏感词权限：
+  - 审核员可进入敏感词管理页。
+  - 审核员可查看敏感词列表。
+  - 审核员可提交敏感词建议，但后端强制 `enabled = 0`，不会立即参与 AI 检测。
+  - 审核员不能编辑、启用、停用或删除敏感词。
+  - 管理员保留完整敏感词管理能力。
+- ASR 回填：
+  - 后端新增 `POST /api/videos/{id}/asr/refresh`。
+  - 审核员和管理员可触发旧视频单独刷新 ASR。
+  - 刷新后保存 `asrText`，并按已启用敏感词重新生成 ASR 命中和 `asrScore`。
+  - ASR 页面新增“生成 ASR / 刷新 ASR”按钮。
+
+### 验证结果
+
+- 已执行 `npm run build`，前端构建通过。
+- 已执行 `mvn -DskipTests package`，后端打包通过。
+- 已重启 SpringBoot，新 PID 为 `30268`。
+- 已验证审核员 `GET /api/sensitive-words` 返回 `200`。
+- 已验证审核员 `POST /api/sensitive-words` 返回 `200`，且新词强制 `enabled = 0`。
+- 已验证审核员 `PUT/DELETE /api/sensitive-words/{id}` 返回 `403`。
+- 已验证管理员可删除测试敏感词。
+- 已用审核员调用 `POST /api/videos/12/asr/refresh`，返回 `200`，视频 12 回填 ASR 文本长度 `1775`。

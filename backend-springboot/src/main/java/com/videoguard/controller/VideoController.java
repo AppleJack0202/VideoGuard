@@ -65,6 +65,11 @@ public class VideoController {
         return videoService.analyze(id);
     }
 
+    @PostMapping("/{id}/asr/refresh")
+    public VideoDetailResponse refreshAsr(@PathVariable Long id) {
+        return videoService.refreshAsr(id);
+    }
+
     @GetMapping("/{id}/play")
     public ResponseEntity<Void> playRedirect(HttpServletRequest request, @PathVariable Long id) {
         VideoDetailResponse detail = WorkflowConstants.ROLE_USER.equals(currentUserRole(request))

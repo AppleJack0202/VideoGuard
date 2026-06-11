@@ -3,6 +3,8 @@ package com.videoguard.controller;
 import com.videoguard.dto.SensitiveWordRequest;
 import com.videoguard.dto.SensitiveWordResponse;
 import com.videoguard.service.SensitiveWordService;
+import com.videoguard.service.WorkflowConstants;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
@@ -34,7 +36,10 @@ public class SensitiveWordController {
     }
 
     @PostMapping
-    public SensitiveWordResponse create(@Valid @RequestBody SensitiveWordRequest request) {
+    public SensitiveWordResponse create(HttpServletRequest httpRequest, @Valid @RequestBody SensitiveWordRequest request) {
+        if (WorkflowConstants.ROLE_REVIEWER.equals(currentUserRole(httpRequest))) {
+            return sensitiveWordService.createSuggestion(request);
+        }
         return sensitiveWordService.create(request);
     }
 
@@ -47,5 +52,10 @@ public class SensitiveWordController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         sensitiveWordService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    private String currentUserRole(HttpServletRequest request) {
+        Object value = request.getAttribute("currentUserRole");
+        return value instanceof String role ? role : WorkflowConstants.ROLE_USER;
     }
 }

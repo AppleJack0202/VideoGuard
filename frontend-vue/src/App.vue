@@ -63,7 +63,10 @@ const menuItems = computed(() => {
     ]
   }
   if (role === '审核员') {
-    return [{ path: '/review', label: '人工复审' }]
+    return [
+      { path: '/review', label: '人工复审' },
+      { path: '/sensitive-words', label: '敏感词管理' }
+    ]
   }
   if (role === '管理员') {
     return [

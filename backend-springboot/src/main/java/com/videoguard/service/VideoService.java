@@ -3,6 +3,7 @@ package com.videoguard.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.videoguard.dto.AiAnalyzeResponse;
+import com.videoguard.dto.AiAsrResponse;
 import com.videoguard.dto.AiReviewResultResponse;
 import com.videoguard.dto.ReviewLogResponse;
 import com.videoguard.dto.SensitiveHitResponse;
@@ -33,6 +34,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
@@ -292,6 +294,57 @@ public class VideoService {
                 .forEach(video -> analyze(video.getId()));
     }
 
+    @Transactional
+    public VideoDetailResponse refreshAsr(Long id) {
+        Video video = videoRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Video not found: " + id));
+        AiAsrResponse asrResponse = restClient.post()
+                .uri("/ai/asr")
+                .body(Map.of(
+                        "video_id", video.getId(),
+                        "video_path", UploadPathResolver.resolveStoredPath(uploadsDir, video.getFilePath()).toAbsolutePath().normalize().toString(),
+                        "language", "zh"))
+                .retrieve()
+                .body(AiAsrResponse.class);
+        if (asrResponse == null) {
+            throw new IllegalStateException("AI service returned empty ASR result.");
+        }
+
+        String asrText = asrResponse.getAsrText() == null ? "" : asrResponse.getAsrText();
+        double asrScore = refreshAsrSensitiveHits(video.getId(), asrText);
+        AiReviewResult result = aiReviewResultRepository.findTopByVideoIdOrderByCreatedAtDesc(video.getId())
+                .orElseGet(() -> {
+                    AiReviewResult created = new AiReviewResult();
+                    created.setVideoId(video.getId());
+                    created.setTextScore(0.0);
+                    created.setImageScore(0.0);
+                    created.setFinalScore(0.0);
+                    created.setRiskLevel("PASS");
+                    return created;
+                });
+
+        result.setAsrText(asrText);
+        result.setAsrScore(asrScore);
+        double finalScore = maxScore(result.getTextScore(), result.getImageScore(), result.getAsrScore());
+        result.setFinalScore(finalScore);
+        result.setRiskLevel(scoreToRiskCode(finalScore));
+        aiReviewResultRepository.save(result);
+
+        String riskLevel = WorkflowConstants.normalizeRiskLevel(result.getRiskLevel());
+        video.setAiRiskScore(finalScore);
+        video.setAiRiskLevel(riskLevel);
+        if (asrScore > 0 && !StringUtils.hasText(video.getViolationCategory())) {
+            sensitiveHitRepository.findByVideoIdOrderByCreatedAtAsc(video.getId()).stream()
+                    .filter(hit -> "ASR".equals(hit.getSourceType()))
+                    .findFirst()
+                    .ifPresent(hit -> video.setViolationCategory(WorkflowConstants.normalizeCategory(hit.getCategory())));
+        }
+        video.setStatus(toVideoStatus(riskLevel));
+        video.setFinalResult(toAiFinalResult(riskLevel));
+        videoRepository.save(video);
+        return detail(id);
+    }
+
     private AiAnalyzeResponse.AnalyzeRequestPayload buildAnalyzeRequest(Video video, List<SensitiveWord> sensitiveWords) {
         List<AiAnalyzeResponse.SensitiveWordPayload> words = sensitiveWords.stream()
                 .map(word -> new AiAnalyzeResponse.SensitiveWordPayload(
@@ -379,6 +432,64 @@ public class VideoService {
         result.setAsrText(aiResponse.getAsrText());
         result.setRawResultJson(toJson(aiResponse));
         aiReviewResultRepository.save(result);
+    }
+
+    private double refreshAsrSensitiveHits(Long videoId, String asrText) {
+        sensitiveHitRepository.deleteByVideoIdAndSourceType(videoId, "ASR");
+        if (!StringUtils.hasText(asrText)) {
+            return 0.0;
+        }
+        List<SensitiveHit> hits = sensitiveWordRepository.findByEnabled(1).stream()
+                .filter(word -> StringUtils.hasText(word.getWord()) && asrText.contains(word.getWord()))
+                .map(word -> {
+                    SensitiveHit hit = new SensitiveHit();
+                    hit.setVideoId(videoId);
+                    hit.setSourceType("ASR");
+                    hit.setWord(word.getWord());
+                    hit.setCategory(word.getCategory());
+                    hit.setWeight(word.getWeight());
+                    hit.setContextText(buildContext(asrText, word.getWord()));
+                    return hit;
+                })
+                .toList();
+        sensitiveHitRepository.saveAll(hits);
+        int totalWeight = hits.stream()
+                .map(SensitiveHit::getWeight)
+                .filter(weight -> weight != null)
+                .mapToInt(Integer::intValue)
+                .sum();
+        return Math.min(100, totalWeight);
+    }
+
+    private String buildContext(String text, String word) {
+        int index = text.indexOf(word);
+        if (index < 0) {
+            return "";
+        }
+        int radius = 12;
+        int start = Math.max(0, index - radius);
+        int end = Math.min(text.length(), index + word.length() + radius);
+        return text.substring(start, end);
+    }
+
+    private double maxScore(Double... scores) {
+        double max = 0.0;
+        for (Double score : scores) {
+            if (score != null && score > max) {
+                max = score;
+            }
+        }
+        return max;
+    }
+
+    private String scoreToRiskCode(double score) {
+        if (score < 30) {
+            return "PASS";
+        }
+        if (score < 70) {
+            return "SUSPICIOUS";
+        }
+        return "VIOLATION";
     }
 
     private String toJson(AiAnalyzeResponse aiResponse) {

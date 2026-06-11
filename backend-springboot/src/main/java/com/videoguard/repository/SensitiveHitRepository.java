@@ -12,6 +12,8 @@ public interface SensitiveHitRepository extends JpaRepository<SensitiveHit, Long
 
     void deleteByVideoId(Long videoId);
 
+    void deleteByVideoIdAndSourceType(Long videoId, String sourceType);
+
     @Query("select new com.videoguard.dto.CountItemResponse(h.category, count(h)) "
             + "from SensitiveHit h group by h.category order by count(h) desc")
     List<CountItemResponse> countByCategory();

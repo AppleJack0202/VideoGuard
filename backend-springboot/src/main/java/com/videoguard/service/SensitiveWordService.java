@@ -49,6 +49,14 @@ public class SensitiveWordService {
     }
 
     @Transactional
+    public SensitiveWordResponse createSuggestion(SensitiveWordRequest request) {
+        SensitiveWord sensitiveWord = new SensitiveWord();
+        applyRequest(sensitiveWord, request);
+        sensitiveWord.setEnabled(0);
+        return SensitiveWordResponse.from(sensitiveWordRepository.save(sensitiveWord));
+    }
+
+    @Transactional
     public SensitiveWordResponse update(Long id, SensitiveWordRequest request) {
         SensitiveWord sensitiveWord = sensitiveWordRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Sensitive word not found: " + id));

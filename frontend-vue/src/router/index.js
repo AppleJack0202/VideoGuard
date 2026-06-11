@@ -17,7 +17,7 @@ const routes = [
   { path: '/login', component: LoginView, meta: { title: '登录' } },
   { path: '/review', component: ReviewView, meta: { title: '人工复审', roles: ['审核员'] } },
   { path: '/review/:id', component: ReviewDetailView, meta: { title: '复审处理', roles: ['审核员'] } },
-  { path: '/sensitive-words', component: SensitiveWordsView, meta: { title: '敏感词管理', roles: ['管理员'] } },
+  { path: '/sensitive-words', component: SensitiveWordsView, meta: { title: '敏感词管理', roles: ['审核员', '管理员'] } },
   { path: '/upload', component: UploadView, meta: { title: '视频上传', roles: ['一般用户'] } },
   { path: '/my-videos', component: MyUploadsView, meta: { title: '我的上传', roles: ['一般用户'] } },
   { path: '/videos', component: VideosView, meta: { title: '视频管理', roles: ['管理员'] } },

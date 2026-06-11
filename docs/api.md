@@ -31,7 +31,7 @@ Role access:
 
 ```text
 一般用户: upload videos, view own uploads and limited own details
-审核员: review tasks and review detail
+审核员: review tasks, review detail, ASR refresh, view sensitive words, submit disabled sensitive-word suggestions
 管理员: dashboard, all videos, sensitive words, users
 ```
 
@@ -313,6 +313,18 @@ Response excerpt:
 }
 ```
 
+### POST /api/videos/{id}/asr/refresh
+
+Reviewer/admin endpoint. Refreshes ASR text only, stores it in the latest AI result, recalculates ASR sensitive-word hits, and updates `asrScore`, `finalScore`, and `riskLevel`.
+
+Response: same shape as `GET /api/videos/{id}`.
+
+Example:
+
+```bash
+curl -X POST http://localhost:8081/api/videos/12/asr/refresh
+```
+
 ## Review
 
 Implemented:
@@ -396,6 +408,13 @@ PUT    /api/sensitive-words/{id}
 DELETE /api/sensitive-words/{id}
 ```
 
+Permissions:
+
+```text
+审核员: GET list, POST suggestion only. Created words are forced to enabled = 0.
+管理员: GET, POST, PUT, DELETE. Admin can enable, disable, edit, and delete words.
+```
+
 ### GET /api/sensitive-words
 
 Query parameters:
@@ -433,13 +452,15 @@ Request:
 }
 ```
 
+For reviewers, `enabled` in the request is ignored and the created word is stored as disabled (`enabled = 0`) until an admin enables it.
+
 ### PUT /api/sensitive-words/{id}
 
-Request shape is the same as `POST /api/sensitive-words`.
+Admin only. Request shape is the same as `POST /api/sensitive-words`.
 
 ### DELETE /api/sensitive-words/{id}
 
-Deletes a sensitive word from the local rule dictionary.
+Admin only. Deletes a sensitive word from the local rule dictionary.
 
 ## Statistics
 
