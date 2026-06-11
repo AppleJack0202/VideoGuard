@@ -60,7 +60,7 @@ public class VideoService {
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
     private final Path uploadsRoot;
-    private final Path projectRoot;
+    private final String uploadsDir;
 
     public VideoService(
             VideoRepository videoRepository,
@@ -83,8 +83,8 @@ public class VideoService {
         this.userRepository = userRepository;
         this.restClient = restClientBuilder.baseUrl(aiServiceBaseUrl).build();
         this.objectMapper = objectMapper;
+        this.uploadsDir = uploadsDir;
         this.uploadsRoot = UploadPathResolver.resolve(uploadsDir);
-        this.projectRoot = uploadsRoot.getParent();
     }
 
     @Transactional
@@ -302,7 +302,7 @@ public class VideoService {
 
         return new AiAnalyzeResponse.AnalyzeRequestPayload(
                 video.getId(),
-                projectRoot.resolve(video.getFilePath()).toAbsolutePath().normalize().toString(),
+                UploadPathResolver.resolveStoredPath(uploadsDir, video.getFilePath()).toAbsolutePath().normalize().toString(),
                 video.getTitle(),
                 video.getDescription() == null ? "" : video.getDescription(),
                 5,

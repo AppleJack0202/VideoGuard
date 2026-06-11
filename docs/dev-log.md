@@ -953,3 +953,34 @@
 - 已验证 `http://localhost:8081/api/health` 返回 `{"status":"ok"}`。
 - 已验证 `http://localhost:8081/uploads/frames/12/frame_0000.jpg` 返回 `200 image/jpeg`。
 - 已通过管理员登录后请求 `GET /api/videos/12`，确认接口返回 `59` 帧，第一帧地址为 `/uploads/frames/12/frame_0000.jpg`。
+
+## 2026-06-11 视频播放路径兼容修复
+
+### 本次目标
+
+- 检查视频详情页播放器无法播放的问题。
+- 修复历史上传视频和当前上传目录不一致导致的视频文件访问失败。
+
+### 问题定位
+
+- 视频 12 的数据库路径为 `/uploads/videos/d0405dcf-101b-4721-852e-1374db6bda98.mp4`。
+- 该视频文件实际保存在历史目录 `D:/zaproject/Real_Projects/uploads/videos`。
+- 上一次修复后，后端默认服务项目内目录 `D:/zaproject/Real_Projects/VideoGuard/uploads`，因此抽帧图片正常，但历史上传的视频文件访问不到。
+
+### 完成工作
+
+- `UploadPathResolver` 增加候选上传目录能力：
+  - 优先使用项目内 `uploads`。
+  - 同时兼容历史目录 `../uploads`。
+- `WebConfig` 的 `/uploads/**` 静态资源映射改为挂载多个候选目录。
+- `VideoService` 重新分析视频时，也会从候选目录里查找真实存在的视频文件。
+
+### 验证结果
+
+- 已执行 `npm run build`，前端构建通过。
+- 已执行 `mvn -DskipTests package`，后端打包通过。
+- 已重启 SpringBoot，新 PID 为 `37832`。
+- 已验证 `http://localhost:8081/api/health` 返回 `{"status":"ok"}`。
+- 已验证视频文件 `HEAD /uploads/videos/d0405dcf-101b-4721-852e-1374db6bda98.mp4` 返回 `200`，`Content-Type` 为 `video/mp4`。
+- 已验证视频 Range 请求返回 `206`，支持浏览器播放器分段加载。
+- 已复查抽帧图片仍返回 `200 image/jpeg`。

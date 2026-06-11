@@ -2,6 +2,8 @@ package com.videoguard.config;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 public final class UploadPathResolver {
 
@@ -9,18 +11,55 @@ public final class UploadPathResolver {
     }
 
     public static Path resolve(String uploadsDir) {
+        return candidateRoots(uploadsDir).get(0);
+    }
+
+    public static List<Path> candidateRoots(String uploadsDir) {
         String normalizedUploadsDir = uploadsDir == null || uploadsDir.isBlank() ? "uploads" : uploadsDir;
         Path configuredPath = Path.of(normalizedUploadsDir);
+        List<Path> roots = new ArrayList<>();
         if (configuredPath.isAbsolute()) {
-            return configuredPath.normalize();
+            addDistinct(roots, configuredPath.normalize());
+            return roots;
         }
 
         Path workingDir = Path.of("").toAbsolutePath().normalize();
         Path projectRoot = findProjectRoot(workingDir);
         if (projectRoot != null && isDefaultUploadsPath(configuredPath)) {
-            return projectRoot.resolve("uploads").normalize();
+            addDistinct(roots, projectRoot.resolve("uploads").normalize());
+            if (projectRoot.getParent() != null) {
+                addDistinct(roots, projectRoot.getParent().resolve("uploads").normalize());
+            }
+            return roots;
         }
-        return workingDir.resolve(configuredPath).normalize();
+        addDistinct(roots, workingDir.resolve(configuredPath).normalize());
+        return roots;
+    }
+
+    public static Path resolveStoredPath(String uploadsDir, String storedPath) {
+        if (storedPath == null || storedPath.isBlank()) {
+            return null;
+        }
+        Path relativePath = Path.of(storedPath).normalize();
+        if (relativePath.isAbsolute()) {
+            return relativePath;
+        }
+        if (relativePath.getNameCount() > 0 && "uploads".equals(relativePath.getName(0).toString())) {
+            relativePath = relativePath.subpath(1, relativePath.getNameCount());
+        }
+        for (Path root : candidateRoots(uploadsDir)) {
+            Path candidate = root.resolve(relativePath).normalize();
+            if (Files.exists(candidate)) {
+                return candidate;
+            }
+        }
+        return candidateRoots(uploadsDir).get(0).resolve(relativePath).normalize();
+    }
+
+    private static void addDistinct(List<Path> roots, Path path) {
+        if (!roots.contains(path)) {
+            roots.add(path);
+        }
     }
 
     private static boolean isDefaultUploadsPath(Path path) {
