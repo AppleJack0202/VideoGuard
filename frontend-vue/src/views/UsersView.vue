@@ -1,7 +1,7 @@
 <template>
   <section class="panel page">
-    <div class="toolbar">
-      <el-button :loading="loading" @click="loadUsers">刷新</el-button>
+    <div class="toolbar action-toolbar">
+      <el-button :icon="Refresh" :loading="loading" @click="loadUsers">刷新</el-button>
     </div>
 
     <el-table :data="users" v-loading="loading" border>
@@ -29,6 +29,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Refresh } from '@element-plus/icons-vue'
 import { fetchUsers, updateUserRole } from '../api/client'
 
 const users = ref([])

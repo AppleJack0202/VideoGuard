@@ -5,9 +5,11 @@
         <h2>{{ video?.title || '视频详情' }}</h2>
         <p>{{ video?.description || '暂无描述' }}</p>
       </div>
-      <div class="toolbar">
-        <el-button :loading="loading" @click="loadDetail">刷新</el-button>
-        <el-button v-if="isAdmin" type="primary" :loading="analyzing" @click="handleAnalyze">重新分析</el-button>
+      <div class="toolbar action-toolbar">
+        <el-button :icon="Refresh" :loading="loading" @click="loadDetail">刷新</el-button>
+        <el-button v-if="isAdmin" type="primary" :icon="Refresh" :loading="analyzing" @click="handleAnalyze">
+          重新分析
+        </el-button>
       </div>
     </div>
 
@@ -84,6 +86,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { Refresh } from '@element-plus/icons-vue'
 import { analyzeVideo, fetchVideoDetail, toAssetUrl } from '../api/client'
 
 const route = useRoute()

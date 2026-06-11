@@ -140,6 +140,10 @@ body {
   margin-left: auto;
 }
 
+.action-toolbar {
+  justify-content: flex-end;
+}
+
 .detail-header {
   display: flex;
   justify-content: space-between;

@@ -5,9 +5,9 @@
         <h2>{{ task?.title || '复审处理' }}</h2>
         <p>{{ task?.description || '查看 AI 证据并提交人工复审结论' }}</p>
       </div>
-      <div class="toolbar">
-        <el-button @click="router.push('/review')">返回列表</el-button>
-        <el-button :loading="loading" @click="loadTask">刷新</el-button>
+      <div class="toolbar action-toolbar">
+        <el-button :icon="Back" @click="router.push('/review')">返回列表</el-button>
+        <el-button :icon="Refresh" :loading="loading" @click="loadTask">刷新</el-button>
       </div>
     </div>
 
@@ -97,6 +97,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { Back, Refresh } from '@element-plus/icons-vue'
 import { fetchReviewLogs, fetchReviewTask, submitReview, toAssetUrl } from '../api/client'
 
 const route = useRoute()

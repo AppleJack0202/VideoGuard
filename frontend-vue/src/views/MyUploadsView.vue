@@ -1,8 +1,8 @@
 <template>
   <section class="panel page">
-    <div class="toolbar">
-      <el-button :loading="loading" @click="loadVideos">刷新</el-button>
-      <el-button type="primary" @click="router.push('/upload')">上传视频</el-button>
+    <div class="toolbar action-toolbar">
+      <el-button :icon="Refresh" :loading="loading" @click="loadVideos">刷新</el-button>
+      <el-button type="primary" :icon="Upload" @click="router.push('/upload')">上传视频</el-button>
     </div>
 
     <el-table :data="videos" v-loading="loading" border>
@@ -27,6 +27,7 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { Refresh, Upload } from '@element-plus/icons-vue'
 import { fetchMyVideos } from '../api/client'
 
 const router = useRouter()

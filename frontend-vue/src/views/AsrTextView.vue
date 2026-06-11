@@ -5,9 +5,9 @@
         <h2>{{ video?.title || 'ASR 文本' }}</h2>
         <p>{{ video?.description || '查看视频语音识别文本' }}</p>
       </div>
-      <div class="toolbar">
-        <el-button @click="router.back()">返回</el-button>
-        <el-button :loading="loading" @click="loadDetail">刷新</el-button>
+      <div class="toolbar action-toolbar">
+        <el-button :icon="Back" @click="router.back()">返回</el-button>
+        <el-button :icon="Refresh" :loading="loading" @click="loadDetail">刷新</el-button>
       </div>
     </div>
 
@@ -27,6 +27,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { Back, Refresh } from '@element-plus/icons-vue'
 import { fetchVideoDetail } from '../api/client'
 
 const route = useRoute()
