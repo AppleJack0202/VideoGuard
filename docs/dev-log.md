@@ -841,3 +841,50 @@
 1. 用真实演示视频走一次完整验收。
 2. 检查课程报告中的页面截图是否需要更新。
 3. 整理最终演示脚本，重点说明角色权限、复审流程和 AI 证据展示。
+
+## 2026-06-11 跟进队友 GitHub 修改
+
+### 本次目标
+
+- 拉取并检查队友合并到 GitHub `dev` 分支的修改。
+- 修复远程提交后本地前端无法构建的问题。
+- 保持本机默认数据库配置可运行，同时不影响队友通过环境变量覆盖配置。
+
+### 完成工作
+
+- 使用 `git fetch` 和 `git pull --ff-only origin dev` 同步远程 `dev`。
+- 确认队友提交 `6-10前端改进` 已合并到本地。
+- 发现并修复两个缺口：
+  - 路由引用了 `AsrTextView.vue` 和 `ReviewDetailView.vue`，但文件未随提交上传。
+  - `application.yml` 默认数据库密码被改为队友本机密码，已恢复为 `${DB_PASSWORD:1234}`。
+- 新增 `/review/:id` 复审处理页。
+- 新增 `/videos/:id/asr` ASR 文本查看页。
+- 补充 `docs/frontend-review-ui-changes.md`，记录队友前端改动和本次修复说明。
+
+### 验证结果
+
+- 后端 `mvn -DskipTests package`：通过。
+- 前端初次 `npm run build`：失败，原因是缺少 `AsrTextView.vue`。
+- 修复后 `npm run build`：通过。
+- `git diff --check`：通过，仅有 Windows 换行提示。
+- 三端服务已启动：
+  - Vue：`http://localhost:5173`
+  - SpringBoot：`http://localhost:8081`
+  - FastAPI：`http://localhost:8000`
+- 健康检查通过：
+  - `GET /api/health` 返回 `200`。
+  - `GET /ai/health` 返回 `200`。
+- 页面路由检查通过：
+  - `/login` 返回 `200`。
+  - `/review` 返回 `200`。
+  - `/review/5` 返回 `200`。
+  - `/videos/5/asr` 返回 `200`。
+- 审核员登录和复审接口验证通过：
+  - `reviewer / 123456` 登录返回 `审核员一号 / 审核员`。
+  - `GET /api/review/tasks` 返回复审列表。
+  - `GET /api/review/tasks/5` 返回视频详情，包含上传者展示名 `普通用户一号`。
+
+### 问题处理
+
+- 队友提交中新增了 `/review/:id` 和 `/videos/:id/asr` 路由，但缺少对应页面文件，导致前端构建失败；已补充页面文件。
+- 队友将本地默认 MySQL 密码改为 `JYX628`，会导致当前电脑默认启动失败；已恢复为 `${DB_PASSWORD:1234}`，其他成员可继续用环境变量覆盖本机密码。

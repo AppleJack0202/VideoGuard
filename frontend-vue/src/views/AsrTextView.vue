@@ -1,0 +1,51 @@
+<template>
+  <section class="page">
+    <div class="panel detail-header">
+      <div>
+        <h2>{{ video?.title || 'ASR 文本' }}</h2>
+        <p>{{ video?.description || '查看视频语音识别文本' }}</p>
+      </div>
+      <div class="toolbar">
+        <el-button @click="router.back()">返回</el-button>
+        <el-button :loading="loading" @click="loadDetail">刷新</el-button>
+      </div>
+    </div>
+
+    <div class="panel page">
+      <el-descriptions :column="1" border>
+        <el-descriptions-item label="处理状态">{{ video?.status || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="AI 风险等级">{{ video?.aiResult?.riskLevel || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="ASR 风险分">{{ video?.aiResult?.asrScore ?? '-' }}</el-descriptions-item>
+      </el-descriptions>
+
+      <pre class="asr-text-block">{{ asrText }}</pre>
+    </div>
+  </section>
+</template>
+
+<script setup>
+import { computed, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { fetchVideoDetail } from '../api/client'
+
+const route = useRoute()
+const router = useRouter()
+const video = ref(null)
+const loading = ref(false)
+
+const asrText = computed(() => video.value?.aiResult?.asrText || '暂无 ASR 文本')
+
+async function loadDetail() {
+  loading.value = true
+  try {
+    video.value = await fetchVideoDetail(route.params.id)
+  } catch (error) {
+    ElMessage.error(error.message)
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(loadDetail)
+</script>
