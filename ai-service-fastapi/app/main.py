@@ -396,6 +396,9 @@ def create_tencent_asr_task(audio_path: Path) -> int:
         "Data": b64encode(audio_path.read_bytes()).decode("ascii"),
         "DataLen": audio_path.stat().st_size,
     }
+    hotword_list = os.getenv("TENCENT_ASR_HOTWORD_LIST", "").strip()
+    if hotword_list:
+        payload["HotwordList"] = hotword_list
     req = models.CreateRecTaskRequest()
     req.from_json_string(json.dumps(payload))
     try:
@@ -471,7 +474,24 @@ def normalize_asr_text(parts) -> str:
 
 def normalize_tencent_asr_text(text: str) -> str:
     text = re.sub(r"\[\d+:\d+(?:\.\d+)?,\d+:\d+(?:\.\d+)?\]\s*", "", text or "")
+    text = apply_asr_corrections(text)
     return normalize_asr_text([text])
+
+
+def apply_asr_corrections(text: str) -> str:
+    correction_config = os.getenv("TENCENT_ASR_CORRECTIONS", "").strip()
+    if not correction_config:
+        return text
+    corrected = text
+    for item in correction_config.split(","):
+        if "=>" not in item:
+            continue
+        source, target = item.split("=>", 1)
+        source = source.strip()
+        target = target.strip()
+        if source and target:
+            corrected = corrected.replace(source, target)
+    return corrected
 
 
 def cleanup_temp_audio(audio_path: Path) -> None:
