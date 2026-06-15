@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -393,6 +394,7 @@ def create_tencent_asr_task(audio_path: Path) -> int:
         "ResTextFormat": int(os.getenv("TENCENT_ASR_RES_TEXT_FORMAT", "0")),
         "SourceType": 1,
         "Data": b64encode(audio_path.read_bytes()).decode("ascii"),
+        "DataLen": audio_path.stat().st_size,
     }
     req = models.CreateRecTaskRequest()
     req.from_json_string(json.dumps(payload))
@@ -441,7 +443,7 @@ def poll_tencent_asr_task(task_id: int) -> str:
         status = data.get("Status")
         status_text = data.get("StatusStr") or data.get("ErrorMsg") or ""
         if status == 2 or str(status_text).lower() in {"success", "finished", "complete", "completed"}:
-            return normalize_asr_text([data.get("Result", "")])
+            return normalize_tencent_asr_text(data.get("Result", ""))
         if status == 3 or str(status_text).lower() in {"failed", "failure", "error"}:
             raise HTTPException(status_code=502, detail=f"Tencent ASR task failed: {status_text or data}")
         time.sleep(interval_sec)
@@ -465,6 +467,11 @@ def get_asr_model(model_size: str, device: str, compute_type: str):
 
 def normalize_asr_text(parts) -> str:
     return "\n".join(part.strip() for part in parts if part and part.strip())
+
+
+def normalize_tencent_asr_text(text: str) -> str:
+    text = re.sub(r"\[\d+:\d+(?:\.\d+)?,\d+:\d+(?:\.\d+)?\]\s*", "", text or "")
+    return normalize_asr_text([text])
 
 
 def cleanup_temp_audio(audio_path: Path) -> None:

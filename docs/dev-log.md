@@ -1136,3 +1136,10 @@
 - 已重启 FastAPI，当前监听 PID 为 `32864`，`http://localhost:8000/ai/health` 返回 `{"status":"ok"}`。
 - 已用本地视频测试腾讯云 ASR 前置音频提取，成功生成 16kHz 单声道 MP3，示例大小约 `180688` 字节。
 - 由于尚未配置 `TENCENT_SECRET_ID` 和 `TENCENT_SECRET_KEY`，本次未实际消耗腾讯云免费额度调用转写接口。
+
+### 后续实测
+
+- 已在本机 `ai-service-fastapi/.env` 配置腾讯云 `SecretId` 和 `SecretKey`，该文件受 `.gitignore` 保护，不提交仓库。
+- 已真实调用 `/ai/asr` 走腾讯云 ASR，接口返回 `200`。
+- 已确认腾讯云 ASR 返回中文文本，示例视频转写文本长度约 `95` 字。
+- 已对腾讯云结果中的时间戳前缀做清洗，页面展示时只保留正文。
