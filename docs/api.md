@@ -633,10 +633,21 @@ Response:
 
 Notes:
 
-- ASR uses `faster-whisper`.
-- Default model is `tiny`; override with `VIDEOGUARD_ASR_MODEL`, for example `base` or `small`.
-- Set `VIDEOGUARD_ASR_LANGUAGE=auto` or request `"language": "auto"` for language auto-detection.
+- ASR supports provider switching with `VIDEOGUARD_ASR_PROVIDER`.
+- `VIDEOGUARD_ASR_PROVIDER=local` uses `faster-whisper`.
+- `VIDEOGUARD_ASR_PROVIDER=tencent` uses Tencent Cloud recording file recognition.
+- Local default model is `tiny`; override with `VIDEOGUARD_ASR_MODEL`, for example `base` or `small`.
+- Set `VIDEOGUARD_ASR_LANGUAGE=auto` or request `"language": "auto"` for local language auto-detection.
 - Set `VIDEOGUARD_ASR_ENABLED=false` to temporarily skip ASR in integrated analysis.
+- Tencent Cloud configuration:
+  - `TENCENT_SECRET_ID`
+  - `TENCENT_SECRET_KEY`
+  - `TENCENT_ASR_REGION`, default `ap-shanghai`
+  - `TENCENT_ASR_ENGINE_MODEL_TYPE`, default `16k_zh`
+  - `TENCENT_ASR_AUDIO_BITRATE`, default `24k`
+  - `TENCENT_ASR_TIMEOUT_SEC`, default `180`
+- Tencent local audio upload is limited to 5 MB. The service extracts 16kHz mono MP3 audio before upload. For very long videos, configure a future COS URL mode instead of local `Data` upload.
+- Copy `ai-service-fastapi/.env.example` to `ai-service-fastapi/.env` and fill in Tencent credentials locally. `.env` must not be committed.
 
 ### POST /ai/image-detect
 

@@ -1100,3 +1100,39 @@
 
 - 已执行 `npm run build`，前端构建通过。
 - 已验证 `/sensitive-word-audit` 可由 Vite 正常返回页面。
+
+## 2026-06-15 腾讯云 ASR API 接入
+
+### 本次目标
+
+- 将当前本地 Whisper ASR 扩展为可切换的腾讯云 ASR API。
+- 保留本地 `faster-whisper` 作为备用方案，避免没有云端密钥或额度时项目完全不可用。
+
+### 完成工作
+
+- AI 服务新增 `VIDEOGUARD_ASR_PROVIDER` 配置：
+  - `local`：继续使用本地 `faster-whisper`。
+  - `tencent`：调用腾讯云录音文件识别。
+- 新增腾讯云 ASR 配置项：
+  - `TENCENT_SECRET_ID`
+  - `TENCENT_SECRET_KEY`
+  - `TENCENT_ASR_REGION`
+  - `TENCENT_ASR_ENGINE_MODEL_TYPE`
+  - `TENCENT_ASR_AUDIO_BITRATE`
+  - `TENCENT_ASR_TIMEOUT_SEC`
+- AI 服务会先用 FFmpeg 从视频中提取 16kHz 单声道 MP3 音频，再提交腾讯云 ASR。
+- 腾讯云本地音频上传限制为 5MB，代码中已加入大小检查和明确错误提示。
+- `/ai/asr` 与 `/ai/analyze` 的外部接口保持不变，SpringBoot 不需要改动。
+- 更新 `ai-service-fastapi/requirements.txt`，新增 `tencentcloud-sdk-python`。
+- 新增 `ai-service-fastapi/.env.example`，提供腾讯云 ASR 本地配置模板。
+- AI 服务启动时会自动读取 `ai-service-fastapi/.env`，真实密钥不提交 Git。
+- 更新 `docs/api.md`，补充腾讯云 ASR 配置说明。
+
+### 验证结果
+
+- 已执行 `.venv\Scripts\python.exe -m pip install -r requirements.txt`，腾讯云 SDK 安装成功。
+- 已执行 `.venv\Scripts\python.exe -m py_compile app\main.py`，AI 服务语法检查通过。
+- 已验证腾讯云 SDK 中 `CreateRecTaskRequest` 和 `DescribeTaskStatusRequest` 可正常导入和构造。
+- 已重启 FastAPI，当前监听 PID 为 `32864`，`http://localhost:8000/ai/health` 返回 `{"status":"ok"}`。
+- 已用本地视频测试腾讯云 ASR 前置音频提取，成功生成 16kHz 单声道 MP3，示例大小约 `180688` 字节。
+- 由于尚未配置 `TENCENT_SECRET_ID` 和 `TENCENT_SECRET_KEY`，本次未实际消耗腾讯云免费额度调用转写接口。

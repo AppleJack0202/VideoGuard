@@ -5,6 +5,8 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
+from base64 import b64encode
 from functools import lru_cache
 from pathlib import Path
 
@@ -15,6 +17,16 @@ from pydantic import BaseModel, Field
 app = FastAPI(title="VideoGuard AI Service")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+AI_SERVICE_ROOT = PROJECT_ROOT / "ai-service-fastapi"
+TENCENT_ASR_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    load_dotenv = None
+
+if load_dotenv:
+    load_dotenv(AI_SERVICE_ROOT / ".env")
 
 
 class MetadataRequest(BaseModel):
@@ -223,25 +235,10 @@ def transcribe_video_audio(video_path: Path, language: str | None = None, fail_s
     if not is_asr_enabled():
         return ""
     try:
-        audio_path = extract_audio_for_asr(video_path)
-        try:
-            model = get_asr_model(
-                os.getenv("VIDEOGUARD_ASR_MODEL", "tiny"),
-                os.getenv("VIDEOGUARD_ASR_DEVICE", "cpu"),
-                os.getenv("VIDEOGUARD_ASR_COMPUTE_TYPE", "int8"),
-            )
-            selected_language = language if language is not None else os.getenv("VIDEOGUARD_ASR_LANGUAGE", "zh")
-            if selected_language in {"", "auto", "AUTO"}:
-                selected_language = None
-            segments, _ = model.transcribe(
-                str(audio_path),
-                language=selected_language,
-                vad_filter=True,
-                beam_size=5,
-            )
-            return normalize_asr_text(segment.text for segment in segments)
-        finally:
-            cleanup_temp_audio(audio_path)
+        provider = os.getenv("VIDEOGUARD_ASR_PROVIDER", "local").strip().lower()
+        if provider in {"tencent", "tencentcloud", "tencent_cloud"}:
+            return transcribe_video_audio_by_tencent(video_path)
+        return transcribe_video_audio_locally(video_path, language)
     except HTTPException:
         if fail_silently:
             return ""
@@ -256,7 +253,42 @@ def is_asr_enabled() -> bool:
     return os.getenv("VIDEOGUARD_ASR_ENABLED", "true").lower() not in {"0", "false", "no", "off"}
 
 
+def transcribe_video_audio_locally(video_path: Path, language: str | None = None) -> str:
+    audio_path = extract_audio_for_local_asr(video_path)
+    try:
+        model = get_asr_model(
+            os.getenv("VIDEOGUARD_ASR_MODEL", "tiny"),
+            os.getenv("VIDEOGUARD_ASR_DEVICE", "cpu"),
+            os.getenv("VIDEOGUARD_ASR_COMPUTE_TYPE", "int8"),
+        )
+        selected_language = language if language is not None else os.getenv("VIDEOGUARD_ASR_LANGUAGE", "zh")
+        if selected_language in {"", "auto", "AUTO"}:
+            selected_language = None
+        segments, _ = model.transcribe(
+            str(audio_path),
+            language=selected_language,
+            vad_filter=True,
+            beam_size=5,
+        )
+        return normalize_asr_text(segment.text for segment in segments)
+    finally:
+        cleanup_temp_audio(audio_path)
+
+
+def transcribe_video_audio_by_tencent(video_path: Path) -> str:
+    audio_path = extract_audio_for_tencent_asr(video_path)
+    try:
+        task_id = create_tencent_asr_task(audio_path)
+        return poll_tencent_asr_task(task_id)
+    finally:
+        cleanup_temp_audio(audio_path)
+
+
 def extract_audio_for_asr(video_path: Path) -> Path:
+    return extract_audio_for_local_asr(video_path)
+
+
+def extract_audio_for_local_asr(video_path: Path) -> Path:
     if not shutil.which("ffmpeg"):
         raise HTTPException(status_code=500, detail="ffmpeg is required for ASR audio extraction.")
 
@@ -284,6 +316,137 @@ def extract_audio_for_asr(video_path: Path) -> Path:
         detail = result.stderr.strip() or "No audio stream could be extracted."
         raise HTTPException(status_code=400, detail=f"ASR audio extraction failed: {detail}")
     return audio_path
+
+
+def extract_audio_for_tencent_asr(video_path: Path) -> Path:
+    if not shutil.which("ffmpeg"):
+        raise HTTPException(status_code=500, detail="ffmpeg is required for ASR audio extraction.")
+
+    temp_dir = Path(tempfile.mkdtemp(prefix="videoguard-asr-"))
+    audio_path = temp_dir / "audio.mp3"
+    bitrate = os.getenv("TENCENT_ASR_AUDIO_BITRATE", "24k")
+    command = [
+        "ffmpeg",
+        "-y",
+        "-v",
+        "error",
+        "-i",
+        str(video_path),
+        "-vn",
+        "-ac",
+        "1",
+        "-ar",
+        "16000",
+        "-b:a",
+        bitrate,
+        str(audio_path),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True)
+    if result.returncode != 0 or not audio_path.exists() or audio_path.stat().st_size == 0:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        detail = result.stderr.strip() or "No audio stream could be extracted."
+        raise HTTPException(status_code=400, detail=f"ASR audio extraction failed: {detail}")
+    if audio_path.stat().st_size > TENCENT_ASR_MAX_UPLOAD_BYTES:
+        size_mb = audio_path.stat().st_size / 1024 / 1024
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                f"Tencent ASR local upload is limited to 5 MB. "
+                f"Extracted audio is {size_mb:.2f} MB. Use a shorter video or configure COS URL mode later."
+            ),
+        )
+    return audio_path
+
+
+def create_tencent_asr_task(audio_path: Path) -> int:
+    try:
+        from tencentcloud.asr.v20190614 import asr_client, models
+        from tencentcloud.common import credential
+        from tencentcloud.common.exception.tencent_cloud_sdk_exception import TencentCloudSDKException
+        from tencentcloud.common.profile.client_profile import ClientProfile
+        from tencentcloud.common.profile.http_profile import HttpProfile
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Tencent ASR dependency is missing. Run pip install -r ai-service-fastapi/requirements.txt.",
+        ) from exc
+
+    secret_id = os.getenv("TENCENT_SECRET_ID")
+    secret_key = os.getenv("TENCENT_SECRET_KEY")
+    if not secret_id or not secret_key:
+        raise HTTPException(status_code=500, detail="TENCENT_SECRET_ID and TENCENT_SECRET_KEY are required.")
+
+    http_profile = HttpProfile()
+    http_profile.endpoint = "asr.tencentcloudapi.com"
+    client_profile = ClientProfile()
+    client_profile.httpProfile = http_profile
+    client = asr_client.AsrClient(
+        credential.Credential(secret_id, secret_key),
+        os.getenv("TENCENT_ASR_REGION", "ap-shanghai"),
+        client_profile,
+    )
+
+    payload = {
+        "EngineModelType": os.getenv("TENCENT_ASR_ENGINE_MODEL_TYPE", "16k_zh"),
+        "ChannelNum": int(os.getenv("TENCENT_ASR_CHANNEL_NUM", "1")),
+        "ResTextFormat": int(os.getenv("TENCENT_ASR_RES_TEXT_FORMAT", "0")),
+        "SourceType": 1,
+        "Data": b64encode(audio_path.read_bytes()).decode("ascii"),
+    }
+    req = models.CreateRecTaskRequest()
+    req.from_json_string(json.dumps(payload))
+    try:
+        response = client.CreateRecTask(req)
+    except TencentCloudSDKException as exc:
+        raise HTTPException(status_code=502, detail=f"Tencent ASR task creation failed: {exc}") from exc
+
+    data = json.loads(response.to_json_string()).get("Data") or {}
+    task_id = data.get("TaskId")
+    if task_id is None:
+        raise HTTPException(status_code=502, detail=f"Tencent ASR response missing TaskId: {data}")
+    return int(task_id)
+
+
+def poll_tencent_asr_task(task_id: int) -> str:
+    from tencentcloud.asr.v20190614 import asr_client, models
+    from tencentcloud.common import credential
+    from tencentcloud.common.exception.tencent_cloud_sdk_exception import TencentCloudSDKException
+    from tencentcloud.common.profile.client_profile import ClientProfile
+    from tencentcloud.common.profile.http_profile import HttpProfile
+
+    secret_id = os.getenv("TENCENT_SECRET_ID")
+    secret_key = os.getenv("TENCENT_SECRET_KEY")
+    http_profile = HttpProfile()
+    http_profile.endpoint = "asr.tencentcloudapi.com"
+    client_profile = ClientProfile()
+    client_profile.httpProfile = http_profile
+    client = asr_client.AsrClient(
+        credential.Credential(secret_id, secret_key),
+        os.getenv("TENCENT_ASR_REGION", "ap-shanghai"),
+        client_profile,
+    )
+
+    timeout_sec = int(os.getenv("TENCENT_ASR_TIMEOUT_SEC", "180"))
+    interval_sec = float(os.getenv("TENCENT_ASR_POLL_INTERVAL_SEC", "3"))
+    deadline = time.monotonic() + timeout_sec
+    while time.monotonic() < deadline:
+        req = models.DescribeTaskStatusRequest()
+        req.from_json_string(json.dumps({"TaskId": task_id}))
+        try:
+            response = client.DescribeTaskStatus(req)
+        except TencentCloudSDKException as exc:
+            raise HTTPException(status_code=502, detail=f"Tencent ASR task polling failed: {exc}") from exc
+        data = json.loads(response.to_json_string()).get("Data") or {}
+        status = data.get("Status")
+        status_text = data.get("StatusStr") or data.get("ErrorMsg") or ""
+        if status == 2 or str(status_text).lower() in {"success", "finished", "complete", "completed"}:
+            return normalize_asr_text([data.get("Result", "")])
+        if status == 3 or str(status_text).lower() in {"failed", "failure", "error"}:
+            raise HTTPException(status_code=502, detail=f"Tencent ASR task failed: {status_text or data}")
+        time.sleep(interval_sec)
+
+    raise HTTPException(status_code=504, detail=f"Tencent ASR task timed out after {timeout_sec} seconds.")
 
 
 @lru_cache(maxsize=4)
