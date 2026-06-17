@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+import uuid
 from base64 import b64encode
 from functools import lru_cache
 from pathlib import Path
@@ -20,6 +21,7 @@ app = FastAPI(title="VideoGuard AI Service")
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 AI_SERVICE_ROOT = PROJECT_ROOT / "ai-service-fastapi"
 TENCENT_ASR_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+DASHSCOPE_BASE_URL = "https://dashscope.aliyuncs.com/api/v1/services/audio/asr/transcription"
 
 try:
     from dotenv import load_dotenv
@@ -161,12 +163,7 @@ def analyze(request: AnalyzeRequest) -> dict:
             sensitive_words=request.sensitive_words,
         )
     )
-    image_result = image_detect(
-        ImageDetectRequest(
-            video_id=request.video_id,
-            frames=[FrameItem(**frame) for frame in frame_result],
-        )
-    )
+    image_result = analyze_video_content(video_path, request.video_id, frame_result)
 
     text_score = text_result["text_score"]
     asr_score = text_result["asr_score"]
@@ -214,6 +211,251 @@ class ModelImageDetector:
         }
 
 
+def analyze_video_content(video_path: Path, video_id: int, frame_result: list[dict]) -> dict:
+    provider = os.getenv("VIDEOGUARD_VIDEO_DETECT_PROVIDER", "").strip().lower()
+    if provider in {"aliyun", "alibaba"}:
+        try:
+            return detect_video_content_by_aliyun(video_path, video_id, frame_result)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Aliyun video detection failed: {exc}") from exc
+    return image_detect(
+        ImageDetectRequest(
+            video_id=video_id,
+            frames=[FrameItem(**frame) for frame in frame_result],
+        )
+    )
+
+
+def detect_video_content_by_aliyun(video_path: Path, video_id: int, frame_result: list[dict]) -> dict:
+    object_key, signed_url = upload_file_to_aliyun_oss(video_path, "moderation")
+    try:
+        task_id = create_aliyun_video_moderation_task(signed_url)
+        moderation_result = poll_aliyun_video_moderation_task(task_id)
+        label, confidence, risk_score = summarize_aliyun_video_moderation(moderation_result)
+        frames = [
+            {
+                "frame_path": frame["frame_path"],
+                "timestamp_sec": frame["timestamp_sec"],
+                "label": label,
+                "confidence": confidence,
+                "risk_score": risk_score,
+            }
+            for frame in frame_result
+        ]
+        return {"video_id": video_id, "frames": frames, "image_score": risk_score}
+    finally:
+        cleanup_aliyun_oss_object(object_key)
+
+
+def upload_file_to_aliyun_oss(file_path: Path, prefix: str) -> tuple[str, str]:
+    try:
+        import oss2
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Aliyun OSS dependency is missing. Run pip install -r ai-service-fastapi/requirements.txt.",
+        ) from exc
+
+    access_key_id = os.getenv("ALIYUN_ACCESS_KEY_ID") or os.getenv("OSS_ACCESS_KEY_ID")
+    access_key_secret = os.getenv("ALIYUN_ACCESS_KEY_SECRET") or os.getenv("OSS_ACCESS_KEY_SECRET")
+    bucket_name = os.getenv("ALIYUN_OSS_BUCKET")
+    endpoint = os.getenv("ALIYUN_OSS_ENDPOINT")
+    if not all([access_key_id, access_key_secret, bucket_name, endpoint]):
+        raise HTTPException(
+            status_code=500,
+            detail="ALIYUN_ACCESS_KEY_ID, ALIYUN_ACCESS_KEY_SECRET, ALIYUN_OSS_BUCKET and ALIYUN_OSS_ENDPOINT are required.",
+        )
+
+    auth = oss2.Auth(access_key_id, access_key_secret)
+    bucket = oss2.Bucket(auth, endpoint, bucket_name)
+    object_key = f"videoguard/{prefix}/{uuid.uuid4().hex}{file_path.suffix.lower()}"
+    bucket.put_object_from_file(object_key, str(file_path))
+    expires = int(os.getenv("ALIYUN_OSS_SIGNED_URL_EXPIRES", "3600"))
+    signed_url = bucket.sign_url("GET", object_key, expires)
+    return object_key, signed_url
+
+
+def cleanup_aliyun_oss_object(object_key: str) -> None:
+    if os.getenv("ALIYUN_OSS_KEEP_OBJECTS", "false").lower() in {"1", "true", "yes", "on"}:
+        return
+    try:
+        import oss2
+
+        access_key_id = os.getenv("ALIYUN_ACCESS_KEY_ID") or os.getenv("OSS_ACCESS_KEY_ID")
+        access_key_secret = os.getenv("ALIYUN_ACCESS_KEY_SECRET") or os.getenv("OSS_ACCESS_KEY_SECRET")
+        bucket_name = os.getenv("ALIYUN_OSS_BUCKET")
+        endpoint = os.getenv("ALIYUN_OSS_ENDPOINT")
+        if not all([access_key_id, access_key_secret, bucket_name, endpoint]):
+            return
+        bucket = oss2.Bucket(oss2.Auth(access_key_id, access_key_secret), endpoint, bucket_name)
+        bucket.delete_object(object_key)
+    except Exception:
+        pass
+
+
+def create_aliyun_video_moderation_task(video_url: str) -> str:
+    try:
+        from alibabacloud_green20220302.client import Client as GreenClient
+        from alibabacloud_green20220302 import models as green_models
+        from alibabacloud_tea_openapi import models as open_api_models
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Aliyun Green dependency is missing. Run pip install -r ai-service-fastapi/requirements.txt.",
+        ) from exc
+
+    client = GreenClient(
+        open_api_models.Config(
+            access_key_id=os.getenv("ALIYUN_ACCESS_KEY_ID") or os.getenv("OSS_ACCESS_KEY_ID"),
+            access_key_secret=os.getenv("ALIYUN_ACCESS_KEY_SECRET") or os.getenv("OSS_ACCESS_KEY_SECRET"),
+            endpoint=os.getenv("ALIYUN_GREEN_ENDPOINT", "green-cip.cn-shanghai.aliyuncs.com"),
+            region_id=os.getenv("ALIYUN_REGION_ID", "cn-beijing"),
+        )
+    )
+    service = os.getenv("ALIYUN_GREEN_VIDEO_SERVICE", "videoDetection")
+    request = green_models.VideoModerationRequest(
+        service=service,
+        service_parameters=json.dumps({"url": video_url}, ensure_ascii=False),
+    )
+    response = client.video_moderation(request)
+    data = response.to_map()
+    ensure_aliyun_green_success(data, "video moderation")
+    task_id = find_first_key(data, {"taskId", "task_id", "TaskId"})
+    if not task_id:
+        raise HTTPException(status_code=502, detail=f"Aliyun video moderation response missing task id: {data}")
+    return str(task_id)
+
+
+def poll_aliyun_video_moderation_task(task_id: str) -> dict:
+    try:
+        from alibabacloud_green20220302.client import Client as GreenClient
+        from alibabacloud_green20220302 import models as green_models
+        from alibabacloud_tea_openapi import models as open_api_models
+    except ImportError as exc:
+        raise HTTPException(status_code=503, detail="Aliyun Green dependency is missing.") from exc
+
+    client = GreenClient(
+        open_api_models.Config(
+            access_key_id=os.getenv("ALIYUN_ACCESS_KEY_ID") or os.getenv("OSS_ACCESS_KEY_ID"),
+            access_key_secret=os.getenv("ALIYUN_ACCESS_KEY_SECRET") or os.getenv("OSS_ACCESS_KEY_SECRET"),
+            endpoint=os.getenv("ALIYUN_GREEN_ENDPOINT", "green-cip.cn-shanghai.aliyuncs.com"),
+            region_id=os.getenv("ALIYUN_REGION_ID", "cn-beijing"),
+        )
+    )
+    timeout_sec = int(os.getenv("ALIYUN_GREEN_TIMEOUT_SEC", "300"))
+    interval_sec = float(os.getenv("ALIYUN_GREEN_POLL_INTERVAL_SEC", "5"))
+    deadline = time.monotonic() + timeout_sec
+    while time.monotonic() < deadline:
+        request = green_models.VideoModerationResultRequest(service_parameters=json.dumps({"taskId": task_id}))
+        response = client.video_moderation_result(request)
+        data = response.to_map()
+        ensure_aliyun_green_success(data, "video moderation result")
+        status = str(find_first_key(data, {"status", "Status", "taskStatus", "TaskStatus"}) or "").lower()
+        if status in {"success", "succeeded", "finish", "finished", "done"} or "riskLevel" in json.dumps(data):
+            return data
+        if status in {"failed", "failure", "error", "canceled"}:
+            raise HTTPException(status_code=502, detail=f"Aliyun video moderation task failed: {data}")
+        time.sleep(interval_sec)
+    raise HTTPException(status_code=504, detail=f"Aliyun video moderation task timed out after {timeout_sec} seconds.")
+
+
+def summarize_aliyun_video_moderation(result: dict) -> tuple[str, float, int]:
+    result_text = json.dumps(result, ensure_ascii=False)
+    risk_level = str(find_first_key(result, {"riskLevel", "RiskLevel", "risk_level"}) or "").lower()
+    labels = collect_values_by_key(result, {"label", "Label", "riskLabel", "RiskLabel", "riskTips"})
+    label_text = ",".join(str(label) for label in labels if label)
+    combined = f"{risk_level} {label_text} {result_text}".lower()
+    if any(word in combined for word in ["high", "block", "violation", "porn", "terrorism", "violence", "ad"]):
+        return normalize_aliyun_label(label_text or "violation"), 0.9, 80
+    if any(word in combined for word in ["medium", "review", "疑似", "manual"]):
+        return normalize_aliyun_label(label_text or "suspicious"), 0.75, 50
+    return normalize_aliyun_label(label_text or "normal"), 0.9, 5
+
+
+def normalize_aliyun_label(label: str) -> str:
+    lowered = label.lower()
+    if "porn" in lowered or "sexual" in lowered or "色情" in label:
+        return "porn"
+    if "violence" in lowered or "terrorism" in lowered or "暴力" in label or "恐怖" in label:
+        return "violence"
+    if "ad" in lowered or "广告" in label:
+        return "ad"
+    if "suspicious" in lowered or "疑似" in label:
+        return "suspicious"
+    if "normal" in lowered or "pass" in lowered:
+        return "normal"
+    return label[:64] or "normal"
+
+
+def ensure_aliyun_green_success(data: dict, action: str) -> None:
+    body = data.get("body") if isinstance(data, dict) else None
+    code = body.get("Code") if isinstance(body, dict) else None
+    if code not in {None, 200, "200"}:
+        message = body.get("Message") or body
+        raise HTTPException(status_code=502, detail=f"Aliyun {action} failed: {message}")
+
+
+def find_first_key(value, keys: set[str]):
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if key in keys:
+                return item
+            found = find_first_key(item, keys)
+            if found is not None:
+                return found
+    elif isinstance(value, list):
+        for item in value:
+            found = find_first_key(item, keys)
+            if found is not None:
+                return found
+    return None
+
+
+def collect_values_by_key(value, keys: set[str]) -> list:
+    values = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if key in keys:
+                values.append(item)
+            values.extend(collect_values_by_key(item, keys))
+    elif isinstance(value, list):
+        for item in value:
+            values.extend(collect_values_by_key(item, keys))
+    return values
+
+
+def requests_post_json(url: str, payload: dict, headers: dict, timeout: int) -> dict:
+    try:
+        import requests
+    except ImportError as exc:
+        raise HTTPException(status_code=503, detail="requests dependency is missing.") from exc
+    response = requests.post(url, json=payload, headers=headers, timeout=timeout)
+    try:
+        data = response.json()
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=f"Invalid JSON response from {url}: {response.text[:300]}") from exc
+    if response.status_code >= 400:
+        raise HTTPException(status_code=502, detail=f"Request failed: {data}")
+    return data
+
+
+def requests_get_json(url: str, headers: dict, timeout: int) -> dict:
+    try:
+        import requests
+    except ImportError as exc:
+        raise HTTPException(status_code=503, detail="requests dependency is missing.") from exc
+    response = requests.get(url, headers=headers, timeout=timeout)
+    try:
+        data = response.json()
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=f"Invalid JSON response from {url}: {response.text[:300]}") from exc
+    if response.status_code >= 400:
+        raise HTTPException(status_code=502, detail=f"Request failed: {data}")
+    return data
+
+
 def resolve_video_path(video_path: str) -> Path:
     path = Path(video_path)
     if path.is_absolute():
@@ -237,6 +479,8 @@ def transcribe_video_audio(video_path: Path, language: str | None = None, fail_s
         return ""
     try:
         provider = os.getenv("VIDEOGUARD_ASR_PROVIDER", "local").strip().lower()
+        if provider in {"aliyun", "alibaba", "dashscope"}:
+            return transcribe_video_audio_by_aliyun(video_path)
         if provider in {"tencent", "tencentcloud", "tencent_cloud"}:
             return transcribe_video_audio_by_tencent(video_path)
         return transcribe_video_audio_locally(video_path, language)
@@ -283,6 +527,17 @@ def transcribe_video_audio_by_tencent(video_path: Path) -> str:
         return poll_tencent_asr_task(task_id)
     finally:
         cleanup_temp_audio(audio_path)
+
+
+def transcribe_video_audio_by_aliyun(video_path: Path) -> str:
+    audio_path = extract_audio_for_aliyun_asr(video_path)
+    object_key, signed_url = upload_file_to_aliyun_oss(audio_path, "asr")
+    try:
+        task_id = create_aliyun_asr_task(signed_url)
+        return poll_aliyun_asr_task(task_id)
+    finally:
+        cleanup_temp_audio(audio_path)
+        cleanup_aliyun_oss_object(object_key)
 
 
 def extract_audio_for_asr(video_path: Path) -> Path:
@@ -358,6 +613,129 @@ def extract_audio_for_tencent_asr(video_path: Path) -> Path:
             ),
         )
     return audio_path
+
+
+def extract_audio_for_aliyun_asr(video_path: Path) -> Path:
+    if not shutil.which("ffmpeg"):
+        raise HTTPException(status_code=500, detail="ffmpeg is required for ASR audio extraction.")
+
+    temp_dir = Path(tempfile.mkdtemp(prefix="videoguard-asr-"))
+    audio_path = temp_dir / "audio.mp3"
+    bitrate = os.getenv("ALIYUN_ASR_AUDIO_BITRATE", "64k")
+    command = [
+        "ffmpeg",
+        "-y",
+        "-v",
+        "error",
+        "-i",
+        str(video_path),
+        "-vn",
+        "-ac",
+        "1",
+        "-ar",
+        "16000",
+        "-b:a",
+        bitrate,
+        str(audio_path),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True)
+    if result.returncode != 0 or not audio_path.exists() or audio_path.stat().st_size == 0:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        detail = result.stderr.strip() or "No audio stream could be extracted."
+        raise HTTPException(status_code=400, detail=f"ASR audio extraction failed: {detail}")
+    return audio_path
+
+
+def create_aliyun_asr_task(file_url: str) -> str:
+    api_key = os.getenv("DASHSCOPE_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="DASHSCOPE_API_KEY is required for Aliyun ASR.")
+
+    payload = {
+        "model": os.getenv("ALIYUN_ASR_MODEL", "paraformer-v2"),
+        "input": {"file_urls": [file_url]},
+        "parameters": build_aliyun_asr_parameters(),
+    }
+    response = requests_post_json(
+        DASHSCOPE_BASE_URL,
+        payload,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "X-DashScope-Async": "enable",
+        },
+        timeout=30,
+    )
+    task_id = (response.get("output") or {}).get("task_id")
+    if not task_id:
+        raise HTTPException(status_code=502, detail=f"Aliyun ASR response missing task_id: {response}")
+    return task_id
+
+
+def build_aliyun_asr_parameters() -> dict:
+    parameters: dict[str, object] = {}
+    hotwords = os.getenv("ALIYUN_ASR_HOTWORDS", "").strip()
+    if hotwords:
+        parameters["hot_words"] = [word.strip() for word in hotwords.split(",") if word.strip()]
+    return parameters
+
+
+def poll_aliyun_asr_task(task_id: str) -> str:
+    api_key = os.getenv("DASHSCOPE_API_KEY")
+    timeout_sec = int(os.getenv("ALIYUN_ASR_TIMEOUT_SEC", "300"))
+    interval_sec = float(os.getenv("ALIYUN_ASR_POLL_INTERVAL_SEC", "5"))
+    deadline = time.monotonic() + timeout_sec
+    task_url = f"https://dashscope.aliyuncs.com/api/v1/tasks/{task_id}"
+    while time.monotonic() < deadline:
+        response = requests_get_json(
+            task_url,
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=30,
+        )
+        output = response.get("output") or {}
+        status = str(output.get("task_status") or "").upper()
+        if status == "SUCCEEDED":
+            return fetch_aliyun_asr_transcript(output)
+        if status in {"FAILED", "CANCELED", "UNKNOWN"}:
+            raise HTTPException(status_code=502, detail=f"Aliyun ASR task failed: {response}")
+        time.sleep(interval_sec)
+    raise HTTPException(status_code=504, detail=f"Aliyun ASR task timed out after {timeout_sec} seconds.")
+
+
+def fetch_aliyun_asr_transcript(output: dict) -> str:
+    results = output.get("results") or []
+    texts: list[str] = []
+    for item in results:
+        transcription_url = item.get("transcription_url") or item.get("url")
+        if transcription_url:
+            result = requests_get_json(transcription_url, headers={}, timeout=60)
+            texts.extend(extract_text_from_aliyun_asr_result(result))
+        else:
+            texts.extend(extract_text_from_aliyun_asr_result(item))
+    return normalize_asr_text(texts)
+
+
+def extract_text_from_aliyun_asr_result(result: object) -> list[str]:
+    texts: list[str] = []
+    if isinstance(result, dict):
+        child_texts: list[str] = []
+        for key in ("sentences", "transcripts", "segments", "results"):
+            value = result.get(key)
+            if isinstance(value, list):
+                for item in value:
+                    child_texts.extend(extract_text_from_aliyun_asr_result(item))
+            elif isinstance(value, dict):
+                child_texts.extend(extract_text_from_aliyun_asr_result(value))
+        if child_texts:
+            return child_texts
+        for key in ("text", "transcript", "sentence"):
+            value = result.get(key)
+            if isinstance(value, str) and value.strip():
+                texts.append(value.strip())
+    elif isinstance(result, list):
+        for item in result:
+            texts.extend(extract_text_from_aliyun_asr_result(item))
+    return texts
 
 
 def create_tencent_asr_task(audio_path: Path) -> int:

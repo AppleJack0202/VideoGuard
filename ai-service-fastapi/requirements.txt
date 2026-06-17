@@ -6,3 +6,7 @@ faster-whisper==1.1.1
 requests==2.32.5
 tencentcloud-sdk-python>=3.0.0
 python-dotenv==1.2.2
+oss2==2.19.1
+alibabacloud-green20220302>=3.3.0
+alibabacloud-tea-openapi>=0.4.3
+alibabacloud-tea-util>=0.3.13

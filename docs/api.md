@@ -651,6 +651,26 @@ Notes:
 - Tencent local audio upload is limited to 5 MB. The service extracts 16kHz mono MP3 audio before upload. For very long videos, configure a future COS URL mode instead of local `Data` upload.
 - Copy `ai-service-fastapi/.env.example` to `ai-service-fastapi/.env` and fill in Tencent credentials locally. `.env` must not be committed.
 
+Aliyun provider:
+
+- Set `VIDEOGUARD_ASR_PROVIDER=aliyun` to use DashScope non-realtime ASR.
+- Set `VIDEOGUARD_VIDEO_DETECT_PROVIDER=aliyun` to use Alibaba Cloud video moderation.
+- Required configuration:
+  - `DASHSCOPE_API_KEY`
+  - `ALIYUN_ACCESS_KEY_ID`
+  - `ALIYUN_ACCESS_KEY_SECRET`
+  - `ALIYUN_REGION_ID`, for example `cn-beijing`
+  - `ALIYUN_OSS_BUCKET`
+  - `ALIYUN_OSS_ENDPOINT`, for example `oss-cn-beijing.aliyuncs.com`
+- Optional configuration:
+  - `ALIYUN_ASR_MODEL`, default `paraformer-v2`
+  - `ALIYUN_ASR_AUDIO_BITRATE`, default `64k`
+  - `ALIYUN_ASR_HOTWORDS`
+  - `ALIYUN_GREEN_ENDPOINT`, default `green-cip.cn-shanghai.aliyuncs.com`
+  - `ALIYUN_GREEN_VIDEO_SERVICE`, default `videoDetection`
+- Aliyun ASR uploads extracted MP3 audio to OSS, submits a signed OSS URL to DashScope, polls the async task, then deletes the temporary OSS object.
+- Aliyun video moderation uploads the video to OSS and submits a signed OSS URL to Content Safety. The Alibaba Cloud account must enable the Content Safety / AI Safety Guard service first.
+
 ### POST /ai/image-detect
 
 Request:

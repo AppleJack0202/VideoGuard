@@ -1166,3 +1166,42 @@
 - 已重启 FastAPI 并实际调用 `/ai/asr`。
 - 优化前示例误识别为“控制吸烟材料”“定制吸烟”。
 - 优化后示例输出为“兰州市公共场所控制吸烟条例规定了公共场所是禁止吸烟的，请您禁止吸烟”。
+
+## 2026-06-17 阿里云 ASR 与视频审核接入
+
+### 本次目标
+
+- 将 AI 服务扩展为支持阿里云统一 provider。
+- 使用 OSS 作为云端文件中转，让百炼 ASR 和阿里云视频审核都能访问本地上传的视频/音频。
+
+### 完成工作
+
+- 新增阿里云配置项：
+  - `DASHSCOPE_API_KEY`
+  - `ALIYUN_ACCESS_KEY_ID`
+  - `ALIYUN_ACCESS_KEY_SECRET`
+  - `ALIYUN_REGION_ID`
+  - `ALIYUN_OSS_BUCKET`
+  - `ALIYUN_OSS_ENDPOINT`
+- 新增 `VIDEOGUARD_ASR_PROVIDER=aliyun`：
+  - 使用 FFmpeg 从视频提取 16kHz 单声道 MP3。
+  - 上传临时音频文件到 OSS。
+  - 使用签名 URL 调用百炼非实时 ASR。
+  - 轮询异步任务并下载转写结果。
+  - 清理临时 OSS 对象。
+- 新增 `VIDEOGUARD_VIDEO_DETECT_PROVIDER=aliyun`：
+  - 上传视频到 OSS。
+  - 调用阿里云视频文件审核接口。
+  - 将审核结果映射为当前系统已有的 `label/confidence/risk_score` 结构。
+- 更新 `ai-service-fastapi/.env.example` 和 `docs/api.md`。
+
+### 验证结果
+
+- 已安装 `oss2`、`alibabacloud-green20220302` 等新增依赖。
+- 已验证 OSS 可上传、生成签名 URL，并删除临时对象。
+- 已真实调用百炼 ASR，返回正常中文转写文本。
+- 已修复百炼 ASR 结果解析重复问题，当前示例输出约 `98` 字。
+- 已通过 `/ai/asr` 接口验证阿里 ASR provider，返回 `200`。
+- 已通过 `/ai/analyze` 验证“阿里 ASR + 本地视频检测”组合，返回 `200`，帧抽取和综合评分正常。
+- 已尝试调用阿里云视频审核接口，阿里返回 `commodityCode is invalid: lvwang_cip_public_cn`，说明当前账号尚未开通对应内容安全增强版商品或权限不足。
+- 为避免主流程被未开通的视频审核服务阻塞，本机 `.env` 当前设置为 `VIDEOGUARD_ASR_PROVIDER=aliyun`、`VIDEOGUARD_VIDEO_DETECT_PROVIDER=local`。
