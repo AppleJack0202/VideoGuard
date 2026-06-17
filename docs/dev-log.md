@@ -1205,3 +1205,32 @@
 - 已通过 `/ai/analyze` 验证“阿里 ASR + 本地视频检测”组合，返回 `200`，帧抽取和综合评分正常。
 - 已尝试调用阿里云视频审核接口，阿里返回 `commodityCode is invalid: lvwang_cip_public_cn`，说明当前账号尚未开通对应内容安全增强版商品或权限不足。
 - 为避免主流程被未开通的视频审核服务阻塞，本机 `.env` 当前设置为 `VIDEOGUARD_ASR_PROVIDER=aliyun`、`VIDEOGUARD_VIDEO_DETECT_PROVIDER=local`。
+
+## 2026-06-17 阿里云 AI 审核能力补强
+
+### 本次目标
+
+- 解决“ASR 质量仍偏低”和“AI 内容安全审查未真正实现”的问题。
+- 在内容安全增强版商品未开通的情况下，也要用阿里百炼模型完成可验收的视频内容审核。
+
+### 完成工作
+
+- ASR 侧：
+  - 尝试 `qwen3-asr-flash-filetrans`，该模型不接受当前 OSS 签名 URL，返回 `InvalidParameter.MalformedURL`。
+  - 回退到已实测可用的 `paraformer-v2`。
+  - 将 ASR 音频码率配置提高到 `96k`。
+  - 新增 `ALIYUN_ASR_CORRECTIONS`，支持阿里 ASR 后处理纠错。
+  - 本机已配置控烟、违规、诈骗、赌博等热词，并修正“写二守爷=>吸二手烟”等常见错词。
+- 视频审核侧：
+  - 新增 `ALIYUN_VIDEO_DETECT_MODE=vl`。
+  - 使用百炼兼容 OpenAI 接口调用视频理解模型 `qwen3.5-flash`。
+  - 将模型输出约束为 JSON，并映射为系统已有的 `label/confidence/risk_score`。
+  - `VIDEOGUARD_VIDEO_DETECT_PROVIDER=aliyun` 现在可以在未开通内容安全增强版的情况下完成视频内容安全分类。
+  - 保留 `green` 模式，后续开通阿里内容安全增强版后仍可切换。
+
+### 验证结果
+
+- 已重启 FastAPI，`/ai/health` 返回 `200`。
+- 已调用 `/ai/analyze` 验证“阿里 ASR + 百炼视频理解审核”组合，接口返回 `200`。
+- ASR 示例输出已优化为“叔叔，我不要吸二手烟。先生你好，兰州市公共场所控制吸烟条例规定了公共场所是禁止吸烟的...”。
+- 视频内容审核示例返回 `label=normal`、`confidence=0.95`、`risk_score=5`。

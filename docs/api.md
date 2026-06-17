@@ -655,6 +655,8 @@ Aliyun provider:
 
 - Set `VIDEOGUARD_ASR_PROVIDER=aliyun` to use DashScope non-realtime ASR.
 - Set `VIDEOGUARD_VIDEO_DETECT_PROVIDER=aliyun` to use Alibaba Cloud video moderation.
+- `ALIYUN_VIDEO_DETECT_MODE=vl` uses DashScope video understanding for content safety classification.
+- `ALIYUN_VIDEO_DETECT_MODE=green` uses Alibaba Cloud Content Safety enhanced video moderation, which must be enabled separately.
 - Required configuration:
   - `DASHSCOPE_API_KEY`
   - `ALIYUN_ACCESS_KEY_ID`
@@ -666,10 +668,13 @@ Aliyun provider:
   - `ALIYUN_ASR_MODEL`, default `paraformer-v2`
   - `ALIYUN_ASR_AUDIO_BITRATE`, default `64k`
   - `ALIYUN_ASR_HOTWORDS`
-  - `ALIYUN_GREEN_ENDPOINT`, default `green-cip.cn-shanghai.aliyuncs.com`
-  - `ALIYUN_GREEN_VIDEO_SERVICE`, default `videoDetection`
+  - `ALIYUN_VIDEO_DETECT_MODE`, default `vl`
+  - `ALIYUN_VIDEO_MODEL`, default `qwen3.5-flash`
+  - `ALIYUN_GREEN_ENDPOINT`, default `green-cip.cn-shanghai.aliyuncs.com`, only for `green` mode
+  - `ALIYUN_GREEN_VIDEO_SERVICE`, default `videoDetection`, only for `green` mode
 - Aliyun ASR uploads extracted MP3 audio to OSS, submits a signed OSS URL to DashScope, polls the async task, then deletes the temporary OSS object.
-- Aliyun video moderation uploads the video to OSS and submits a signed OSS URL to Content Safety. The Alibaba Cloud account must enable the Content Safety / AI Safety Guard service first.
+- Aliyun DashScope video moderation uploads the video to OSS, submits a signed OSS URL to a video understanding model, and maps the JSON model output to `label/confidence/risk_score`.
+- Aliyun Content Safety `green` mode uploads the video to OSS and submits a signed OSS URL to Content Safety. The Alibaba Cloud account must enable the Content Safety / AI Safety Guard service first.
 
 ### POST /ai/image-detect
 

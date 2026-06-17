@@ -22,6 +22,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 AI_SERVICE_ROOT = PROJECT_ROOT / "ai-service-fastapi"
 TENCENT_ASR_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 DASHSCOPE_BASE_URL = "https://dashscope.aliyuncs.com/api/v1/services/audio/asr/transcription"
+DASHSCOPE_CHAT_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
 
 try:
     from dotenv import load_dotenv
@@ -229,6 +230,8 @@ def analyze_video_content(video_path: Path, video_id: int, frame_result: list[di
 
 
 def detect_video_content_by_aliyun(video_path: Path, video_id: int, frame_result: list[dict]) -> dict:
+    if os.getenv("ALIYUN_VIDEO_DETECT_MODE", "vl").strip().lower() in {"vl", "qwen", "model"}:
+        return detect_video_content_by_dashscope_vl(video_path, video_id, frame_result)
     object_key, signed_url = upload_file_to_aliyun_oss(video_path, "moderation")
     try:
         task_id = create_aliyun_video_moderation_task(signed_url)
@@ -247,6 +250,100 @@ def detect_video_content_by_aliyun(video_path: Path, video_id: int, frame_result
         return {"video_id": video_id, "frames": frames, "image_score": risk_score}
     finally:
         cleanup_aliyun_oss_object(object_key)
+
+
+def detect_video_content_by_dashscope_vl(video_path: Path, video_id: int, frame_result: list[dict]) -> dict:
+    object_key, signed_url = upload_file_to_aliyun_oss(video_path, "moderation")
+    try:
+        moderation_result = call_dashscope_video_moderation(signed_url)
+        label = str(moderation_result.get("label") or "normal")
+        confidence = float(moderation_result.get("confidence") or 0.75)
+        risk_score = int(moderation_result.get("risk_score") or 0)
+        frames = [
+            {
+                "frame_path": frame["frame_path"],
+                "timestamp_sec": frame["timestamp_sec"],
+                "label": label,
+                "confidence": confidence,
+                "risk_score": risk_score,
+            }
+            for frame in frame_result
+        ]
+        return {"video_id": video_id, "frames": frames, "image_score": risk_score}
+    finally:
+        cleanup_aliyun_oss_object(object_key)
+
+
+def call_dashscope_video_moderation(video_url: str) -> dict:
+    api_key = os.getenv("DASHSCOPE_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="DASHSCOPE_API_KEY is required for DashScope video moderation.")
+    model = os.getenv("ALIYUN_VIDEO_MODEL", "qwen3.5-flash")
+    prompt = (
+        "你是短视频内容安全审核模型。请审核视频画面和可见文字，只输出严格 JSON，不要输出解释。"
+        "风险类别只允许 normal, violence, porn, politics, illegal, ad, suspicious。"
+        "risk_score 为 0-100 整数，normal 通常 0-10，疑似 30-69，明确违规 70-100。"
+        "JSON 格式：{\"label\":\"normal\",\"risk_score\":5,\"confidence\":0.90,\"reason\":\"简短中文原因\"}"
+    )
+    payload = {
+        "model": model,
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "video_url", "video_url": {"url": video_url}},
+                    {"type": "text", "text": prompt},
+                ],
+            }
+        ],
+        "temperature": 0,
+    }
+    data = requests_post_json(
+        DASHSCOPE_CHAT_URL,
+        payload,
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        timeout=int(os.getenv("ALIYUN_VIDEO_REQUEST_TIMEOUT_SEC", "120")),
+    )
+    content = (((data.get("choices") or [{}])[0].get("message") or {}).get("content") or "").strip()
+    parsed = parse_json_object(content)
+    if not parsed:
+        raise HTTPException(status_code=502, detail=f"DashScope video moderation returned invalid JSON: {content[:300]}")
+    return normalize_dashscope_video_moderation(parsed)
+
+
+def parse_json_object(text: str) -> dict | None:
+    text = text.strip()
+    text = re.sub(r"^```(?:json)?\s*", "", text)
+    text = re.sub(r"\s*```$", "", text)
+    match = re.search(r"\{.*\}", text, re.S)
+    if not match:
+        return None
+    try:
+        return json.loads(match.group(0))
+    except json.JSONDecodeError:
+        return None
+
+
+def normalize_dashscope_video_moderation(result: dict) -> dict:
+    label = normalize_aliyun_label(str(result.get("label") or "normal"))
+    try:
+        risk_score = int(float(result.get("risk_score", 5)))
+    except (TypeError, ValueError):
+        risk_score = 5
+    risk_score = max(0, min(100, risk_score))
+    try:
+        confidence = float(result.get("confidence", 0.75))
+    except (TypeError, ValueError):
+        confidence = 0.75
+    confidence = max(0.0, min(1.0, confidence))
+    if label == "normal" and risk_score >= 30:
+        label = "suspicious"
+    return {
+        "label": label,
+        "risk_score": risk_score,
+        "confidence": confidence,
+        "reason": str(result.get("reason") or "")[:200],
+    }
 
 
 def upload_file_to_aliyun_oss(file_path: Path, prefix: str) -> tuple[str, str]:
@@ -269,7 +366,7 @@ def upload_file_to_aliyun_oss(file_path: Path, prefix: str) -> tuple[str, str]:
         )
 
     auth = oss2.Auth(access_key_id, access_key_secret)
-    bucket = oss2.Bucket(auth, endpoint, bucket_name)
+    bucket = oss2.Bucket(auth, normalize_oss_endpoint(endpoint), bucket_name)
     object_key = f"videoguard/{prefix}/{uuid.uuid4().hex}{file_path.suffix.lower()}"
     bucket.put_object_from_file(object_key, str(file_path))
     expires = int(os.getenv("ALIYUN_OSS_SIGNED_URL_EXPIRES", "3600"))
@@ -289,10 +386,17 @@ def cleanup_aliyun_oss_object(object_key: str) -> None:
         endpoint = os.getenv("ALIYUN_OSS_ENDPOINT")
         if not all([access_key_id, access_key_secret, bucket_name, endpoint]):
             return
-        bucket = oss2.Bucket(oss2.Auth(access_key_id, access_key_secret), endpoint, bucket_name)
+        bucket = oss2.Bucket(oss2.Auth(access_key_id, access_key_secret), normalize_oss_endpoint(endpoint), bucket_name)
         bucket.delete_object(object_key)
     except Exception:
         pass
+
+
+def normalize_oss_endpoint(endpoint: str | None) -> str:
+    endpoint = (endpoint or "").strip()
+    if endpoint.startswith(("http://", "https://")):
+        return endpoint
+    return f"https://{endpoint}"
 
 
 def create_aliyun_video_moderation_task(video_url: str) -> str:
@@ -652,7 +756,7 @@ def create_aliyun_asr_task(file_url: str) -> str:
         raise HTTPException(status_code=500, detail="DASHSCOPE_API_KEY is required for Aliyun ASR.")
 
     payload = {
-        "model": os.getenv("ALIYUN_ASR_MODEL", "paraformer-v2"),
+        "model": os.getenv("ALIYUN_ASR_MODEL", "qwen3-asr-flash-filetrans"),
         "input": {"file_urls": [file_url]},
         "parameters": build_aliyun_asr_parameters(),
     }
@@ -712,7 +816,7 @@ def fetch_aliyun_asr_transcript(output: dict) -> str:
             texts.extend(extract_text_from_aliyun_asr_result(result))
         else:
             texts.extend(extract_text_from_aliyun_asr_result(item))
-    return normalize_asr_text(texts)
+    return apply_aliyun_asr_corrections(normalize_asr_text(texts))
 
 
 def extract_text_from_aliyun_asr_result(result: object) -> list[str]:
@@ -736,6 +840,22 @@ def extract_text_from_aliyun_asr_result(result: object) -> list[str]:
         for item in result:
             texts.extend(extract_text_from_aliyun_asr_result(item))
     return texts
+
+
+def apply_aliyun_asr_corrections(text: str) -> str:
+    correction_config = os.getenv("ALIYUN_ASR_CORRECTIONS", "").strip()
+    if not correction_config:
+        return text
+    corrected = text
+    for item in correction_config.split(","):
+        if "=>" not in item:
+            continue
+        source, target = item.split("=>", 1)
+        source = source.strip()
+        target = target.strip()
+        if source and target:
+            corrected = corrected.replace(source, target)
+    return corrected
 
 
 def create_tencent_asr_task(audio_path: Path) -> int:
