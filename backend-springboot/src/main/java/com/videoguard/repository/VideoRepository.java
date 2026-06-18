@@ -21,6 +21,10 @@ public interface VideoRepository extends JpaRepository<Video, Long>, JpaSpecific
 
     List<Video> findByStatusOrderByCreatedAtAsc(String status);
 
+    long countByAiRiskLevel(String aiRiskLevel);
+
+    long countByAiRiskLevelIsNotNull();
+
     long countByStatusInAndAiRiskLevel(Collection<String> statuses, String aiRiskLevel);
 
     @Query("select new com.videoguard.dto.CountItemResponse(coalesce(v.aiRiskLevel, 'UNANALYZED'), count(v)) "

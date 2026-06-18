@@ -69,6 +69,7 @@ public class AuthInterceptor implements HandlerInterceptor {
         if (WorkflowConstants.ROLE_REVIEWER.equals(role)) {
             return path.startsWith("/api/review/")
                     || (HttpMethod.GET.matches(method) && path.startsWith("/api/videos/"))
+                    || (HttpMethod.POST.matches(method) && path.matches("/api/videos/\\d+/analyze"))
                     || (HttpMethod.POST.matches(method) && path.matches("/api/videos/\\d+/asr/refresh"))
                     || (HttpMethod.GET.matches(method) && path.equals("/api/sensitive-words"))
                     || (HttpMethod.POST.matches(method) && path.equals("/api/sensitive-words"));

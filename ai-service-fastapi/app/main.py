@@ -76,6 +76,12 @@ class AnalyzeRequest(FrameExtractRequest):
     sensitive_words: list[SensitiveWord] = Field(default_factory=list)
 
 
+class ContentCategoryRequest(MetadataRequest):
+    title: str = ""
+    description: str = ""
+    asr_text: str = ""
+
+
 @app.get("/ai/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -147,6 +153,14 @@ def image_detect(request: ImageDetectRequest) -> dict:
     return {"video_id": request.video_id, "frames": frames, "image_score": image_score}
 
 
+@app.post("/ai/content-category")
+def content_category(request: ContentCategoryRequest) -> dict:
+    video_path = resolve_video_path(request.video_path)
+    ensure_file_exists(video_path)
+    result = classify_content_category(video_path, request.title, request.description, request.asr_text)
+    return {"video_id": request.video_id, **result}
+
+
 @app.post("/ai/analyze")
 def analyze(request: AnalyzeRequest) -> dict:
     video_path = resolve_video_path(request.video_path)
@@ -165,11 +179,13 @@ def analyze(request: AnalyzeRequest) -> dict:
         )
     )
     image_result = analyze_video_content(video_path, request.video_id, frame_result)
+    category_result = classify_content_category(video_path, request.title, request.description, asr_text)
 
     text_score = text_result["text_score"]
     asr_score = text_result["asr_score"]
     image_score = image_result["image_score"]
     final_score = max(text_score, asr_score, image_score)
+    risk_level = score_to_risk_level(final_score, category_result["category"])
 
     return {
         "video_id": request.video_id,
@@ -183,19 +199,197 @@ def analyze(request: AnalyzeRequest) -> dict:
             "asr_score": asr_score,
             "final_score": final_score,
         },
-        "risk_level": score_to_risk_level(final_score),
+        "risk_level": risk_level,
+        "content_category": category_result,
     }
+
+
+def classify_content_category(video_path: Path, title: str, description: str, asr_text: str) -> dict:
+    provider = os.getenv("VIDEOGUARD_CONTENT_CATEGORY_PROVIDER", "aliyun").strip().lower()
+    if provider in {"aliyun", "alibaba", "dashscope"} and os.getenv("DASHSCOPE_API_KEY"):
+        try:
+            object_key, signed_url = upload_file_to_aliyun_oss(video_path, "category")
+            try:
+                return call_dashscope_content_category(signed_url, title, description, asr_text)
+            finally:
+                cleanup_aliyun_oss_object(object_key)
+        except Exception:
+            pass
+        try:
+            return call_dashscope_content_category_text(title, description, asr_text)
+        except Exception:
+            pass
+    return classify_content_category_locally(title, description, asr_text)
+
+
+def call_dashscope_content_category(video_url: str, title: str, description: str, asr_text: str) -> dict:
+    api_key = os.getenv("DASHSCOPE_API_KEY")
+    model = os.getenv("ALIYUN_CATEGORY_MODEL", os.getenv("ALIYUN_VIDEO_MODEL", "qwen3.5-flash"))
+    prompt = (
+        "你是短视频一级内容分类模型。请结合视频画面、标题、描述和音频转写文本进行分类。"
+        "只能从以下类别中选择一个：新闻资讯、娱乐搞笑、教育科普、生活记录、商品广告、其他。"
+        "分类用于后续设定审核策略，不是违规判定。"
+        "请只输出严格 JSON："
+        "{\"category\":\"教育科普\",\"confidence\":0.90,\"reason\":\"简短中文原因\"}\n"
+        f"标题：{title or '无'}\n"
+        f"描述：{description or '无'}\n"
+        f"ASR文本：{trim_text(asr_text, 2400) or '无'}"
+    )
+    payload = {
+        "model": model,
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "video_url", "video_url": {"url": video_url}},
+                    {"type": "text", "text": prompt},
+                ],
+            }
+        ],
+        "temperature": 0,
+    }
+    data = requests_post_json(
+        DASHSCOPE_CHAT_URL,
+        payload,
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        timeout=int(os.getenv("ALIYUN_CATEGORY_REQUEST_TIMEOUT_SEC", "120")),
+    )
+    content = (((data.get("choices") or [{}])[0].get("message") or {}).get("content") or "").strip()
+    parsed = parse_json_object(content)
+    if not parsed:
+        raise HTTPException(status_code=502, detail=f"DashScope content category returned invalid JSON: {content[:300]}")
+    return normalize_content_category_result(parsed)
+
+
+def call_dashscope_content_category_text(title: str, description: str, asr_text: str) -> dict:
+    api_key = os.getenv("DASHSCOPE_API_KEY")
+    model = os.getenv("ALIYUN_CATEGORY_TEXT_MODEL", "qwen-turbo")
+    prompt = (
+        "你是短视频一级内容分类模型。请根据标题、描述和音频转写文本进行分类。"
+        "只能从以下类别中选择一个：新闻资讯、娱乐搞笑、教育科普、生活记录、商品广告、其他。"
+        "分类用于后续设定审核策略，不是违规判定。"
+        "请只输出严格 JSON："
+        "{\"category\":\"教育科普\",\"confidence\":0.90,\"reason\":\"简短中文原因\"}\n"
+        f"标题：{title or '无'}\n"
+        f"描述：{description or '无'}\n"
+        f"ASR文本：{trim_text(asr_text, 3000) or '无'}"
+    )
+    payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0,
+    }
+    data = requests_post_json(
+        DASHSCOPE_CHAT_URL,
+        payload,
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        timeout=int(os.getenv("ALIYUN_CATEGORY_REQUEST_TIMEOUT_SEC", "120")),
+    )
+    content = (((data.get("choices") or [{}])[0].get("message") or {}).get("content") or "").strip()
+    parsed = parse_json_object(content)
+    if not parsed:
+        raise HTTPException(status_code=502, detail=f"DashScope text category returned invalid JSON: {content[:300]}")
+    return normalize_content_category_result(parsed)
+
+
+def classify_content_category_locally(title: str, description: str, asr_text: str) -> dict:
+    text = f"{title} {description} {asr_text}".lower()
+    rules = [
+        ("教育科普", ["教程", "教学", "课程", "学习", "知识", "科普", "讲解", "python", "数学", "英语"], 0.72),
+        ("新闻资讯", ["新闻", "资讯", "报道", "发布会", "时事", "社会", "现场", "官方", "通报"], 0.70),
+        ("娱乐搞笑", ["搞笑", "娱乐", "段子", "喜剧", "挑战", "游戏", "音乐", "舞蹈", "鬼畜"], 0.70),
+        ("商品广告", ["优惠", "购买", "下单", "直播间", "同款", "折扣", "带货", "商品", "链接"], 0.68),
+        ("生活记录", ["日常", "生活", "记录", "vlog", "旅行", "美食", "宠物", "家人", "今天"], 0.66),
+    ]
+    for category, keywords, confidence in rules:
+        if any(keyword in text for keyword in keywords):
+            return build_content_category(category, confidence, "根据标题、描述或 ASR 文本关键词自动归类。")
+    return build_content_category("其他", 0.55, "未命中明确主题特征，归入其他类别。")
+
+
+def normalize_content_category_result(result: dict) -> dict:
+    category = normalize_content_category(str(result.get("category") or "其他"))
+    try:
+        confidence = float(result.get("confidence", 0.75))
+    except (TypeError, ValueError):
+        confidence = 0.75
+    confidence = max(0.0, min(1.0, confidence))
+    reason = str(result.get("reason") or "")[:200]
+    return build_content_category(category, confidence, reason)
+
+
+def build_content_category(category: str, confidence: float, reason: str) -> dict:
+    normalized = normalize_content_category(category)
+    suspicious_threshold, violation_threshold = category_risk_thresholds(normalized)
+    return {
+        "category": normalized,
+        "confidence": round(max(0.0, min(1.0, confidence)), 3),
+        "reason": reason[:200],
+        "review_strategy": category_review_strategy(normalized),
+        "suspicious_threshold": suspicious_threshold,
+        "violation_threshold": violation_threshold,
+    }
+
+
+def normalize_content_category(category: str) -> str:
+    text = (category or "").strip().lower()
+    if any(word in text for word in ["新闻", "资讯", "news"]):
+        return "新闻资讯"
+    if any(word in text for word in ["娱乐", "搞笑", "funny", "entertainment"]):
+        return "娱乐搞笑"
+    if any(word in text for word in ["教育", "科普", "教程", "education", "science"]):
+        return "教育科普"
+    if any(word in text for word in ["生活", "日常", "记录", "vlog", "life"]):
+        return "生活记录"
+    if any(word in text for word in ["广告", "商品", "带货", "ad", "commerce"]):
+        return "商品广告"
+    return "其他"
+
+
+def category_review_strategy(category: str) -> str:
+    return {
+        "新闻资讯": "新闻类策略",
+        "娱乐搞笑": "娱乐类策略",
+        "教育科普": "教育类策略",
+        "生活记录": "默认策略",
+        "商品广告": "广告类策略",
+    }.get(category, "默认策略")
+
+
+def category_risk_thresholds(category: str) -> tuple[int, int]:
+    if category == "教育科普":
+        return 45, 80
+    if category == "新闻资讯":
+        return 30, 85
+    if category == "商品广告":
+        return 20, 60
+    if category == "娱乐搞笑":
+        return 30, 65
+    return 30, 70
+
+
+def trim_text(text: str, max_length: int) -> str:
+    value = text or ""
+    return value if len(value) <= max_length else value[:max_length] + "..."
 
 
 class ModelImageDetector:
     def detect(self, frame: FrameItem) -> dict:
         frame_name = Path(frame.frame_path).name.lower()
+        labels: list[str] = []
         if "violence" in frame_name:
-            label = "violence"
-            confidence = 0.95
-            risk_score = 80
-        elif "porn" in frame_name:
-            label = "porn"
+            labels.append("violence")
+        if "porn" in frame_name:
+            labels.append("porn")
+        if "politics" in frame_name or "political" in frame_name:
+            labels.append("politics")
+        if "ad" in frame_name:
+            labels.append("ad")
+        if "illegal" in frame_name:
+            labels.append("illegal")
+
+        if labels:
+            label = ",".join(labels)
             confidence = 0.95
             risk_score = 80
         else:
@@ -231,12 +425,16 @@ def analyze_video_content(video_path: Path, video_id: int, frame_result: list[di
 
 def detect_video_content_by_aliyun(video_path: Path, video_id: int, frame_result: list[dict]) -> dict:
     if os.getenv("ALIYUN_VIDEO_DETECT_MODE", "vl").strip().lower() in {"vl", "qwen", "model"}:
-        return detect_video_content_by_dashscope_vl(video_path, video_id, frame_result)
+        try:
+            return detect_video_content_by_dashscope_vl(video_path, video_id, frame_result)
+        except HTTPException as exc:
+            return build_video_content_fallback(video_id, frame_result, exc.detail)
     object_key, signed_url = upload_file_to_aliyun_oss(video_path, "moderation")
     try:
         task_id = create_aliyun_video_moderation_task(signed_url)
         moderation_result = poll_aliyun_video_moderation_task(task_id)
-        label, confidence, risk_score = summarize_aliyun_video_moderation(moderation_result)
+        labels, confidence, risk_score = summarize_aliyun_video_moderation(moderation_result)
+        label = ",".join(labels) if labels else "normal"
         frames = [
             {
                 "frame_path": frame["frame_path"],
@@ -248,6 +446,8 @@ def detect_video_content_by_aliyun(video_path: Path, video_id: int, frame_result
             for frame in frame_result
         ]
         return {"video_id": video_id, "frames": frames, "image_score": risk_score}
+    except HTTPException as exc:
+        return build_video_content_fallback(video_id, frame_result, exc.detail)
     finally:
         cleanup_aliyun_oss_object(object_key)
 
@@ -256,7 +456,8 @@ def detect_video_content_by_dashscope_vl(video_path: Path, video_id: int, frame_
     object_key, signed_url = upload_file_to_aliyun_oss(video_path, "moderation")
     try:
         moderation_result = call_dashscope_video_moderation(signed_url)
-        label = str(moderation_result.get("label") or "normal")
+        labels = normalize_label_list(moderation_result.get("labels") or moderation_result.get("label") or "normal")
+        label = ",".join(labels) if labels else "normal"
         confidence = float(moderation_result.get("confidence") or 0.75)
         risk_score = int(moderation_result.get("risk_score") or 0)
         frames = [
@@ -274,16 +475,39 @@ def detect_video_content_by_dashscope_vl(video_path: Path, video_id: int, frame_
         cleanup_aliyun_oss_object(object_key)
 
 
+def build_video_content_fallback(video_id: int, frame_result: list[dict], detail: object) -> dict:
+    detail_text = str(detail).lower()
+    risk_score = 50
+    label = "suspicious"
+    confidence = 0.60
+    if "data_inspection_failed" in detail_text or "inappropriate content" in detail_text:
+        risk_score = 70
+        label = "suspicious"
+        confidence = 0.75
+    frames = [
+        {
+            "frame_path": frame["frame_path"],
+            "timestamp_sec": frame["timestamp_sec"],
+            "label": label,
+            "confidence": confidence,
+            "risk_score": risk_score,
+        }
+        for frame in frame_result
+    ]
+    return {"video_id": video_id, "frames": frames, "image_score": risk_score}
+
+
 def call_dashscope_video_moderation(video_url: str) -> dict:
     api_key = os.getenv("DASHSCOPE_API_KEY")
     if not api_key:
         raise HTTPException(status_code=500, detail="DASHSCOPE_API_KEY is required for DashScope video moderation.")
     model = os.getenv("ALIYUN_VIDEO_MODEL", "qwen3.5-flash")
     prompt = (
-        "你是短视频内容安全审核模型。请审核视频画面和可见文字，只输出严格 JSON，不要输出解释。"
-        "风险类别只允许 normal, violence, porn, politics, illegal, ad, suspicious。"
+        "你是短视频内容安全审核模型。请审核视频画面、字幕和可见文字，只输出严格 JSON，不要输出解释。"
+        "这是多标签任务，一个视频可以同时属于 violence, porn, politics, illegal, ad, suspicious。"
+        "如果没有明显风险，labels 输出 [\"normal\"]。如果同时有暴力和政治内容，labels 输出 [\"violence\",\"politics\"]。"
         "risk_score 为 0-100 整数，normal 通常 0-10，疑似 30-69，明确违规 70-100。"
-        "JSON 格式：{\"label\":\"normal\",\"risk_score\":5,\"confidence\":0.90,\"reason\":\"简短中文原因\"}"
+        "JSON 格式：{\"labels\":[\"normal\"],\"risk_score\":5,\"confidence\":0.90,\"reason\":\"简短中文原因\"}"
     )
     payload = {
         "model": model,
@@ -325,7 +549,7 @@ def parse_json_object(text: str) -> dict | None:
 
 
 def normalize_dashscope_video_moderation(result: dict) -> dict:
-    label = normalize_aliyun_label(str(result.get("label") or "normal"))
+    labels = normalize_label_list(result.get("labels") or result.get("label") or "normal")
     try:
         risk_score = int(float(result.get("risk_score", 5)))
     except (TypeError, ValueError):
@@ -336,10 +560,11 @@ def normalize_dashscope_video_moderation(result: dict) -> dict:
     except (TypeError, ValueError):
         confidence = 0.75
     confidence = max(0.0, min(1.0, confidence))
-    if label == "normal" and risk_score >= 30:
-        label = "suspicious"
+    if (not labels or labels == ["normal"]) and risk_score >= 30:
+        labels = ["suspicious"]
     return {
-        "label": label,
+        "labels": labels,
+        "label": ",".join(labels) if labels else "normal",
         "risk_score": risk_score,
         "confidence": confidence,
         "reason": str(result.get("reason") or "")[:200],
@@ -465,31 +690,57 @@ def poll_aliyun_video_moderation_task(task_id: str) -> dict:
     raise HTTPException(status_code=504, detail=f"Aliyun video moderation task timed out after {timeout_sec} seconds.")
 
 
-def summarize_aliyun_video_moderation(result: dict) -> tuple[str, float, int]:
+def summarize_aliyun_video_moderation(result: dict) -> tuple[list[str], float, int]:
     result_text = json.dumps(result, ensure_ascii=False)
     risk_level = str(find_first_key(result, {"riskLevel", "RiskLevel", "risk_level"}) or "").lower()
     labels = collect_values_by_key(result, {"label", "Label", "riskLabel", "RiskLabel", "riskTips"})
     label_text = ",".join(str(label) for label in labels if label)
     combined = f"{risk_level} {label_text} {result_text}".lower()
     if any(word in combined for word in ["high", "block", "violation", "porn", "terrorism", "violence", "ad"]):
-        return normalize_aliyun_label(label_text or "violation"), 0.9, 80
+        return normalize_label_list(label_text or "violation"), 0.9, 80
     if any(word in combined for word in ["medium", "review", "疑似", "manual"]):
-        return normalize_aliyun_label(label_text or "suspicious"), 0.75, 50
-    return normalize_aliyun_label(label_text or "normal"), 0.9, 5
+        return normalize_label_list(label_text or "suspicious"), 0.75, 50
+    return normalize_label_list(label_text or "normal"), 0.9, 5
+
+
+def normalize_label_list(value) -> list[str]:
+    raw_values: list[str] = []
+    if isinstance(value, list):
+        for item in value:
+            raw_values.extend(split_label_text(str(item)))
+    else:
+        raw_values.extend(split_label_text(str(value)))
+
+    labels: list[str] = []
+    for raw in raw_values:
+        label = normalize_aliyun_label(raw)
+        if label == "normal":
+            continue
+        if label and label not in labels:
+            labels.append(label)
+    return labels or ["normal"]
+
+
+def split_label_text(text: str) -> list[str]:
+    return [item.strip() for item in re.split(r"[,，;/；、\s]+", text or "") if item.strip()]
 
 
 def normalize_aliyun_label(label: str) -> str:
     lowered = label.lower()
-    if "porn" in lowered or "sexual" in lowered or "色情" in label:
+    if "normal" in lowered or "pass" in lowered or "正常" in label:
+        return "normal"
+    if "porn" in lowered or "sexual" in lowered or "色情" in label or "涉黄" in label:
         return "porn"
-    if "violence" in lowered or "terrorism" in lowered or "暴力" in label or "恐怖" in label:
+    if "violence" in lowered or "terrorism" in lowered or "violent" in lowered or "暴力" in label or "恐怖" in label:
         return "violence"
-    if "ad" in lowered or "广告" in label:
+    if "politics" in lowered or "political" in lowered or "政治" in label or "涉政" in label:
+        return "politics"
+    if "illegal" in lowered or "违法" in label or "违规" in label:
+        return "illegal"
+    if lowered in {"ad", "ads", "advertisement", "advertising"} or "广告" in label:
         return "ad"
     if "suspicious" in lowered or "疑似" in label:
         return "suspicious"
-    if "normal" in lowered or "pass" in lowered:
-        return "normal"
     return label[:64] or "normal"
 
 
@@ -1108,9 +1359,10 @@ def build_context(text: str, word: str, radius: int = 12) -> str:
     return text[start:end]
 
 
-def score_to_risk_level(score: int | float) -> str:
-    if score < 30:
+def score_to_risk_level(score: int | float, category: str | None = None) -> str:
+    suspicious_threshold, violation_threshold = category_risk_thresholds(category or "")
+    if score < suspicious_threshold:
         return "PASS"
-    if score < 70:
+    if score < violation_threshold:
         return "SUSPICIOUS"
     return "VIOLATION"

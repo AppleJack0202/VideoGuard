@@ -7,7 +7,9 @@
       </div>
       <div class="toolbar action-toolbar">
         <el-button :icon="Back" @click="router.push('/review')">返回列表</el-button>
-        <el-button :icon="Refresh" :loading="loading" @click="loadTask">刷新</el-button>
+        <el-button type="primary" :icon="Refresh" :loading="analyzing" @click="handleAnalyze">
+          AI 重新分析
+        </el-button>
       </div>
     </div>
 
@@ -21,8 +23,32 @@
           <el-descriptions-item label="处理状态">{{ task?.status || '-' }}</el-descriptions-item>
           <el-descriptions-item label="AI 风险等级">{{ task?.aiRiskLevel || '-' }}</el-descriptions-item>
           <el-descriptions-item label="AI 风险分">{{ task?.aiRiskScore ?? '-' }}</el-descriptions-item>
-          <el-descriptions-item label="违规类别">{{ task?.violationCategory || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="违规类别">
+            <div v-if="splitCategories(task?.violationCategory).length" class="category-tags">
+              <el-tag
+                v-for="category in splitCategories(task?.violationCategory)"
+                :key="category"
+                :type="categoryTagType(category)"
+                effect="light"
+                size="small"
+              >
+                {{ category }}
+              </el-tag>
+            </div>
+            <span v-else>-</span>
+          </el-descriptions-item>
           <el-descriptions-item label="最终结论">{{ task?.finalResult || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="内容分类">
+            <el-tag v-if="task?.contentCategory" effect="light" type="success">
+              {{ task.contentCategory }}
+            </el-tag>
+            <span v-else>-</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="分类置信度">{{ formatPercent(task?.categoryConfidence) }}</el-descriptions-item>
+          <el-descriptions-item label="审核策略">{{ task?.reviewStrategy || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="审核阈值">
+            {{ task?.contentCategory ? reviewThresholdText(task.contentCategory) : '-' }}
+          </el-descriptions-item>
           <el-descriptions-item label="ASR 文本">
             <el-button v-if="task" link type="primary" @click="router.push(`/videos/${task.id}/asr`)">查看 ASR 文本</el-button>
             <span v-else>-</span>
@@ -38,10 +64,19 @@
             </el-radio-group>
           </el-form-item>
           <el-form-item v-if="form.status !== '通过'" label="违规类别">
-            <el-select v-model="form.violationCategory" placeholder="请选择违规类别">
-              <el-option label="暴力" value="暴力" />
-              <el-option label="色情" value="色情" />
-              <el-option label="政治敏感" value="政治敏感" />
+            <el-select
+              v-model="form.violationCategories"
+              multiple
+              collapse-tags
+              collapse-tags-tooltip
+              placeholder="可多选违规类别"
+            >
+              <el-option
+                v-for="category in violationCategoryOptions"
+                :key="category"
+                :label="category"
+                :value="category"
+              />
             </el-select>
           </el-form-item>
           <el-form-item label="审核意见">
@@ -74,7 +109,20 @@
       <div v-else class="frame-grid">
         <div v-for="frame in pagedFrames" :key="frame.id" class="frame-item">
           <img :src="toAssetUrl(frame.frameUrl)" :alt="`frame-${frame.id}`" />
-          <span>{{ frame.timestampSec ?? 0 }}s / {{ frame.riskScore ?? 0 }}分</span>
+          <div class="frame-meta">
+            <span>{{ frame.timestampSec ?? 0 }}s / {{ frame.riskScore ?? 0 }}分</span>
+            <div v-if="splitFrameLabels(frame.label).length" class="category-tags">
+              <el-tag
+                v-for="category in splitFrameLabels(frame.label)"
+                :key="category"
+                :type="categoryTagType(category)"
+                effect="light"
+                size="small"
+              >
+                {{ category }}
+              </el-tag>
+            </div>
+          </div>
         </div>
       </div>
       <el-pagination
@@ -110,7 +158,14 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Back, Refresh } from '@element-plus/icons-vue'
-import { fetchReviewLogs, fetchReviewTask, submitReview, toAssetUrl } from '../api/client'
+import { analyzeVideo, fetchReviewLogs, fetchReviewTask, submitReview, toAssetUrl } from '../api/client'
+import {
+  categoryTagType,
+  joinCategories,
+  reviewThresholdText,
+  splitCategories,
+  violationCategoryOptions
+} from '../utils/categories'
 
 const route = useRoute()
 const router = useRouter()
@@ -118,6 +173,7 @@ const task = ref(null)
 const reviewLogs = ref([])
 const loading = ref(false)
 const submitting = ref(false)
+const analyzing = ref(false)
 const framePageSize = 12
 const frameCurrentPage = ref(1)
 const frames = computed(() => task.value?.frames || [])
@@ -128,7 +184,7 @@ const pagedFrames = computed(() => {
 
 const form = reactive({
   status: '通过',
-  violationCategory: '暴力',
+  violationCategories: ['暴力'],
   comment: ''
 })
 
@@ -138,7 +194,10 @@ async function loadTask() {
     task.value = await fetchReviewTask(route.params.id)
     reviewLogs.value = await fetchReviewLogs(route.params.id)
     form.status = normalizeSubmitStatus(task.value.status)
-    form.violationCategory = task.value.violationCategory || '暴力'
+    form.violationCategories = splitCategories(task.value.violationCategory)
+    if (!form.violationCategories.length) {
+      form.violationCategories = ['暴力']
+    }
     form.comment = ''
   } catch (error) {
     ElMessage.error(error.message)
@@ -155,12 +214,16 @@ async function handleSubmit() {
     ElMessage.warning('请输入人工复审意见')
     return
   }
+  if (form.status !== '通过' && !form.violationCategories.length) {
+    ElMessage.warning('请至少选择一个违规类别')
+    return
+  }
 
   submitting.value = true
   try {
     task.value = await submitReview(task.value.id, {
       status: form.status,
-      violationCategory: form.status === '通过' ? null : form.violationCategory,
+      violationCategory: form.status === '通过' ? null : joinCategories(form.violationCategories),
       comment: form.comment.trim()
     })
     reviewLogs.value = await fetchReviewLogs(task.value.id)
@@ -173,12 +236,47 @@ async function handleSubmit() {
   }
 }
 
+async function handleAnalyze() {
+  if (!task.value) {
+    return
+  }
+  analyzing.value = true
+  try {
+    await analyzeVideo(task.value.id)
+    ElMessage.success('AI 重新分析完成')
+    await loadTask()
+  } catch (error) {
+    ElMessage.error(error.message)
+  } finally {
+    analyzing.value = false
+  }
+}
+
 function normalizeSubmitStatus(status) {
   return ['通过', '驳回', '待申诉'].includes(status) ? status : '通过'
 }
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleString() : '-'
+}
+
+function formatPercent(value) {
+  return value === null || value === undefined ? '-' : `${Math.round(value * 100)}%`
+}
+
+function splitFrameLabels(value) {
+  const labelMap = {
+    violence: '暴力',
+    porn: '色情',
+    politics: '政治敏感',
+    political: '政治敏感',
+    illegal: '其他违规',
+    ad: '其他违规',
+    suspicious: '其他违规'
+  }
+  return splitCategories(value)
+    .map((label) => labelMap[label] || label)
+    .filter((label) => label !== 'normal' && label !== '正常')
 }
 
 watch(frames, () => {

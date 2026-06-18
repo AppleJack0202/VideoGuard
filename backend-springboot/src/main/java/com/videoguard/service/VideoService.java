@@ -32,6 +32,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -176,7 +177,7 @@ public class VideoService {
                 predicates.add(criteriaBuilder.equal(root.get("aiRiskLevel"), aiRiskLevel));
             }
             if (StringUtils.hasText(violationCategory)) {
-                predicates.add(criteriaBuilder.equal(root.get("violationCategory"), violationCategory));
+                predicates.add(criteriaBuilder.like(root.get("violationCategory"), "%" + violationCategory.trim() + "%"));
             }
             if (uploaderId != null) {
                 predicates.add(criteriaBuilder.equal(root.get("uploaderId"), uploaderId));
@@ -271,6 +272,7 @@ public class VideoService {
 
         clearPreviousAnalysis(video.getId());
         saveMetadata(video, aiResponse);
+        saveContentCategory(video, aiResponse);
         saveFrames(video.getId(), aiResponse);
         saveSensitiveHits(video.getId(), aiResponse);
         saveAiReviewResult(video.getId(), aiResponse);
@@ -333,11 +335,14 @@ public class VideoService {
         String riskLevel = WorkflowConstants.normalizeRiskLevel(result.getRiskLevel());
         video.setAiRiskScore(finalScore);
         video.setAiRiskLevel(riskLevel);
-        if (asrScore > 0 && !StringUtils.hasText(video.getViolationCategory())) {
-            sensitiveHitRepository.findByVideoIdOrderByCreatedAtAsc(video.getId()).stream()
+        if (asrScore > 0) {
+            String asrCategories = sensitiveHitRepository.findByVideoIdOrderByCreatedAtAsc(video.getId()).stream()
                     .filter(hit -> "ASR".equals(hit.getSourceType()))
-                    .findFirst()
-                    .ifPresent(hit -> video.setViolationCategory(WorkflowConstants.normalizeCategory(hit.getCategory())));
+                    .map(hit -> WorkflowConstants.normalizeCategory(hit.getCategory()))
+                    .filter(StringUtils::hasText)
+                    .distinct()
+                    .collect(java.util.stream.Collectors.joining(","));
+            video.setViolationCategory(mergeCategories(video.getViolationCategory(), asrCategories));
         }
         video.setStatus(toVideoStatus(riskLevel));
         video.setFinalResult(toAiFinalResult(riskLevel));
@@ -380,6 +385,21 @@ public class VideoService {
         if (metadata.getFileSize() != null) {
             video.setFileSize(metadata.getFileSize());
         }
+    }
+
+    private void saveContentCategory(Video video, AiAnalyzeResponse aiResponse) {
+        AiAnalyzeResponse.ContentCategory contentCategory = aiResponse.getContentCategory();
+        if (contentCategory == null) {
+            video.setContentCategory(null);
+            video.setCategoryConfidence(null);
+            video.setCategoryReason(null);
+            video.setReviewStrategy(null);
+            return;
+        }
+        video.setContentCategory(contentCategory.getCategory());
+        video.setCategoryConfidence(contentCategory.getConfidence());
+        video.setCategoryReason(contentCategory.getReason());
+        video.setReviewStrategy(contentCategory.getReviewStrategy());
     }
 
     private void saveFrames(Long videoId, AiAnalyzeResponse aiResponse) {
@@ -518,18 +538,43 @@ public class VideoService {
     }
 
     private String resolveViolationCategory(AiAnalyzeResponse aiResponse) {
+        LinkedHashSet<String> categories = new LinkedHashSet<>();
         if (aiResponse.getTextHits() != null && !aiResponse.getTextHits().isEmpty()) {
-            return WorkflowConstants.normalizeCategory(aiResponse.getTextHits().get(0).getCategory());
+            aiResponse.getTextHits().stream()
+                    .map(hit -> WorkflowConstants.normalizeCategory(hit.getCategory()))
+                    .filter(StringUtils::hasText)
+                    .forEach(categories::add);
         }
         if (aiResponse.getFrames() != null) {
-            return aiResponse.getFrames().stream()
+            aiResponse.getFrames().stream()
                     .filter(frame -> frame.getRiskScore() != null && frame.getRiskScore() >= 30)
-                    .map(frame -> WorkflowConstants.normalizeCategory(frame.getLabel()))
+                    .map(frame -> WorkflowConstants.normalizeCategories(frame.getLabel()))
                     .filter(StringUtils::hasText)
-                    .findFirst()
-                    .orElse(null);
+                    .flatMap(value -> List.of(value.split(",")).stream())
+                    .map(WorkflowConstants::normalizeCategory)
+                    .filter(StringUtils::hasText)
+                    .forEach(categories::add);
         }
-        return null;
+        return categories.isEmpty() ? null : String.join(",", categories);
+    }
+
+    private String mergeCategories(String existingCategories, String nextCategories) {
+        LinkedHashSet<String> categories = new LinkedHashSet<>();
+        addCategories(categories, existingCategories);
+        addCategories(categories, nextCategories);
+        return categories.isEmpty() ? null : String.join(",", categories);
+    }
+
+    private void addCategories(LinkedHashSet<String> categories, String value) {
+        String normalized = WorkflowConstants.normalizeCategories(value);
+        if (!StringUtils.hasText(normalized)) {
+            return;
+        }
+        for (String item : normalized.split(",")) {
+            if (StringUtils.hasText(item)) {
+                categories.add(item);
+            }
+        }
     }
 
     private String getExtension(String filename) {

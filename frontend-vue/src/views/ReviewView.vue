@@ -23,6 +23,7 @@
           <el-option label="暴力" value="暴力" />
           <el-option label="色情" value="色情" />
           <el-option label="政治敏感" value="政治敏感" />
+          <el-option label="其他违规" value="其他违规" />
         </el-select>
       </div>
       <div class="toolbar-actions">
@@ -36,8 +37,32 @@
       <el-table-column prop="aiRiskLevel" label="AI 风险等级" width="150">
         <template #default="{ row }">{{ row.aiRiskLevel || '-' }}</template>
       </el-table-column>
-      <el-table-column prop="violationCategory" label="违规类别" width="120">
-        <template #default="{ row }">{{ row.violationCategory || '-' }}</template>
+      <el-table-column prop="violationCategory" label="违规类别" width="190">
+        <template #default="{ row }">
+          <div v-if="splitCategories(row.violationCategory).length" class="category-tags">
+            <el-tag
+              v-for="category in splitCategories(row.violationCategory)"
+              :key="category"
+              :type="categoryTagType(category)"
+              effect="light"
+              size="small"
+            >
+              {{ category }}
+            </el-tag>
+          </div>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
+      <el-table-column prop="contentCategory" label="内容分类" width="130">
+        <template #default="{ row }">
+          <el-tag v-if="row.contentCategory" effect="light" type="success" size="small">
+            {{ row.contentCategory }}
+          </el-tag>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
+      <el-table-column prop="reviewStrategy" label="审核策略" width="130">
+        <template #default="{ row }">{{ row.reviewStrategy || '-' }}</template>
       </el-table-column>
       <el-table-column prop="duration" label="时长(秒)" width="110">
         <template #default="{ row }">{{ row.duration ?? '-' }}</template>
@@ -61,6 +86,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import { fetchReviewTasks } from '../api/client'
+import { categoryTagType, splitCategories } from '../utils/categories'
 
 const router = useRouter()
 const tasks = ref([])

@@ -18,6 +18,8 @@ public class AiAnalyzeResponse {
     private Scores scores;
     @JsonProperty("risk_level")
     private String riskLevel;
+    @JsonProperty("content_category")
+    private ContentCategory contentCategory;
 
     public Long getVideoId() {
         return videoId;
@@ -73,6 +75,55 @@ public class AiAnalyzeResponse {
 
     public void setRiskLevel(String riskLevel) {
         this.riskLevel = riskLevel;
+    }
+
+    public ContentCategory getContentCategory() {
+        return contentCategory;
+    }
+
+    public void setContentCategory(ContentCategory contentCategory) {
+        this.contentCategory = contentCategory;
+    }
+
+    public static class ContentCategory {
+
+        private String category;
+        private Double confidence;
+        private String reason;
+        @JsonProperty("review_strategy")
+        private String reviewStrategy;
+
+        public String getCategory() {
+            return category;
+        }
+
+        public void setCategory(String category) {
+            this.category = category;
+        }
+
+        public Double getConfidence() {
+            return confidence;
+        }
+
+        public void setConfidence(Double confidence) {
+            this.confidence = confidence;
+        }
+
+        public String getReason() {
+            return reason;
+        }
+
+        public void setReason(String reason) {
+            this.reason = reason;
+        }
+
+        public String getReviewStrategy() {
+            return reviewStrategy;
+        }
+
+        public void setReviewStrategy(String reviewStrategy) {
+            this.reviewStrategy = reviewStrategy;
+        }
     }
 
     public static class Metadata {
@@ -288,6 +339,13 @@ public class AiAnalyzeResponse {
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("videoId", videoId);
         summary.put("riskLevel", riskLevel);
+        if (contentCategory != null) {
+            Map<String, Object> categoryMap = new LinkedHashMap<>();
+            categoryMap.put("category", contentCategory.getCategory());
+            categoryMap.put("confidence", contentCategory.getConfidence());
+            categoryMap.put("reviewStrategy", contentCategory.getReviewStrategy());
+            summary.put("contentCategory", categoryMap);
+        }
         if (scores != null) {
             Map<String, Object> scoreMap = new LinkedHashMap<>();
             scoreMap.put("textScore", scores.getTextScore());

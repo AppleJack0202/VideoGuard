@@ -25,6 +25,10 @@ public class VideoDetailResponse {
     private String aiRiskLevel;
     private Double aiRiskScore;
     private String violationCategory;
+    private String contentCategory;
+    private Double categoryConfidence;
+    private String categoryReason;
+    private String reviewStrategy;
     private String finalResult;
     private String finalComment;
     private LocalDateTime createdAt;
@@ -53,6 +57,10 @@ public class VideoDetailResponse {
         response.setAiRiskLevel(video.getAiRiskLevel());
         response.setAiRiskScore(video.getAiRiskScore());
         response.setViolationCategory(video.getViolationCategory());
+        response.setContentCategory(video.getContentCategory());
+        response.setCategoryConfidence(video.getCategoryConfidence());
+        response.setCategoryReason(video.getCategoryReason());
+        response.setReviewStrategy(video.getReviewStrategy());
         response.setFinalResult(video.getFinalResult());
         response.setFinalComment(video.getFinalComment());
         response.setCreatedAt(video.getCreatedAt());
@@ -213,6 +221,38 @@ public class VideoDetailResponse {
 
     public void setViolationCategory(String violationCategory) {
         this.violationCategory = violationCategory;
+    }
+
+    public String getContentCategory() {
+        return contentCategory;
+    }
+
+    public void setContentCategory(String contentCategory) {
+        this.contentCategory = contentCategory;
+    }
+
+    public Double getCategoryConfidence() {
+        return categoryConfidence;
+    }
+
+    public void setCategoryConfidence(Double categoryConfidence) {
+        this.categoryConfidence = categoryConfidence;
+    }
+
+    public String getCategoryReason() {
+        return categoryReason;
+    }
+
+    public void setCategoryReason(String categoryReason) {
+        this.categoryReason = categoryReason;
+    }
+
+    public String getReviewStrategy() {
+        return reviewStrategy;
+    }
+
+    public void setReviewStrategy(String reviewStrategy) {
+        this.reviewStrategy = reviewStrategy;
     }
 
     public String getFinalResult() {

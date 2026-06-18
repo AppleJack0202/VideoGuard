@@ -24,7 +24,11 @@ CREATE TABLE IF NOT EXISTS video (
   status VARCHAR(32) NOT NULL DEFAULT '已上传',
   ai_risk_level VARCHAR(32),
   ai_risk_score DOUBLE DEFAULT 0,
-  violation_category VARCHAR(32),
+  violation_category VARCHAR(128),
+  content_category VARCHAR(64),
+  category_confidence DOUBLE,
+  category_reason TEXT,
+  review_strategy VARCHAR(64),
   final_result VARCHAR(32),
   final_comment TEXT,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -32,6 +36,7 @@ CREATE TABLE IF NOT EXISTS video (
   INDEX idx_video_status (status),
   INDEX idx_video_ai_risk_level (ai_risk_level),
   INDEX idx_video_violation_category (violation_category),
+  INDEX idx_video_content_category (content_category),
   INDEX idx_video_uploader_id (uploader_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -40,7 +45,7 @@ CREATE TABLE IF NOT EXISTS video_frame (
   video_id BIGINT NOT NULL,
   frame_path VARCHAR(512) NOT NULL,
   timestamp_sec DOUBLE NOT NULL,
-  label VARCHAR(64),
+  label VARCHAR(128),
   confidence DOUBLE DEFAULT 0,
   risk_score DOUBLE DEFAULT 0,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

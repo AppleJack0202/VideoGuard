@@ -57,7 +57,7 @@ public class ReviewService {
                 predicates.add(criteriaBuilder.equal(root.get("aiRiskLevel"), aiRiskLevel));
             }
             if (StringUtils.hasText(violationCategory)) {
-                predicates.add(criteriaBuilder.equal(root.get("violationCategory"), violationCategory));
+                predicates.add(criteriaBuilder.like(root.get("violationCategory"), "%" + violationCategory.trim() + "%"));
             }
             return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
         };
@@ -141,9 +141,14 @@ public class ReviewService {
         if (WorkflowConstants.STATUS_PASSED.equals(status)) {
             return null;
         }
-        String normalized = WorkflowConstants.normalizeCategory(violationCategory);
-        if (!StringUtils.hasText(normalized) || !WorkflowConstants.VIOLATION_CATEGORIES.contains(normalized)) {
-            throw new IllegalArgumentException("Violation category must be 暴力, 色情, or 政治敏感.");
+        String normalized = WorkflowConstants.normalizeCategories(violationCategory);
+        if (!StringUtils.hasText(normalized)) {
+            throw new IllegalArgumentException("Violation category is required.");
+        }
+        for (String category : normalized.split(",")) {
+            if (!WorkflowConstants.VIOLATION_CATEGORIES.contains(category)) {
+                throw new IllegalArgumentException("Violation category must be 暴力, 色情, 政治敏感, or 其他违规.");
+            }
         }
         return normalized;
     }

@@ -59,6 +59,18 @@ public class Video {
     @Column(name = "violation_category")
     private String violationCategory;
 
+    @Column(name = "content_category")
+    private String contentCategory;
+
+    @Column(name = "category_confidence")
+    private Double categoryConfidence;
+
+    @Column(name = "category_reason", columnDefinition = "TEXT")
+    private String categoryReason;
+
+    @Column(name = "review_strategy")
+    private String reviewStrategy;
+
     @Column(name = "final_result")
     private String finalResult;
 
@@ -209,6 +221,38 @@ public class Video {
 
     public void setViolationCategory(String violationCategory) {
         this.violationCategory = violationCategory;
+    }
+
+    public String getContentCategory() {
+        return contentCategory;
+    }
+
+    public void setContentCategory(String contentCategory) {
+        this.contentCategory = contentCategory;
+    }
+
+    public Double getCategoryConfidence() {
+        return categoryConfidence;
+    }
+
+    public void setCategoryConfidence(Double categoryConfidence) {
+        this.categoryConfidence = categoryConfidence;
+    }
+
+    public String getCategoryReason() {
+        return categoryReason;
+    }
+
+    public void setCategoryReason(String categoryReason) {
+        this.categoryReason = categoryReason;
+    }
+
+    public String getReviewStrategy() {
+        return reviewStrategy;
+    }
+
+    public void setReviewStrategy(String reviewStrategy) {
+        this.reviewStrategy = reviewStrategy;
     }
 
     public String getFinalResult() {

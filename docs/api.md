@@ -16,7 +16,8 @@ The improved version uses Chinese business values:
 ```text
 status: 已上传, 预审中, 复审中, 待申诉, 通过, 驳回
 aiRiskLevel: 正常, 可疑, 违规
-violationCategory: 暴力, 色情, 政治敏感
+violationCategory: 暴力, 色情, 政治敏感, 其他违规; multiple values are stored as comma-separated text, for example 暴力,政治敏感
+contentCategory: 新闻资讯, 娱乐搞笑, 教育科普, 生活记录, 商品广告, 其他
 finalResult: 正常, 可疑, 违规
 roles: 一般用户, 审核员, 管理员
 ```
@@ -283,6 +284,10 @@ Response excerpt:
   "status": "复审中",
   "aiRiskLevel": "可疑",
   "aiRiskScore": 40.0,
+  "contentCategory": "教育科普",
+  "categoryConfidence": 0.91,
+  "categoryReason": "标题和语音内容均为课程讲解",
+  "reviewStrategy": "教育类策略",
   "aiResult": {
     "textScore": 40.0,
     "imageScore": 5.0,
@@ -312,6 +317,43 @@ Response excerpt:
   ]
 }
 ```
+
+### Content Category Classification
+
+AI analysis also returns an automatic first-level content category. FastAPI combines video frames/video URL, title, description, and ASR text, then asks DashScope to select one category from:
+
+```text
+新闻资讯, 娱乐搞笑, 教育科普, 生活记录, 商品广告, 其他
+```
+
+FastAPI response excerpt:
+
+```json
+{
+  "content_category": {
+    "category": "教育科普",
+    "confidence": 0.91,
+    "reason": "标题和语音内容均为课程讲解",
+    "review_strategy": "教育类策略",
+    "suspicious_threshold": 45,
+    "violation_threshold": 80
+  }
+}
+```
+
+SpringBoot stores the result in `video.content_category`, `video.category_confidence`, `video.category_reason`, and `video.review_strategy`. The category is used as a basis for later differentiated review strategies.
+
+Strategy thresholds:
+
+```text
+教育科普: 45 / 80
+新闻资讯: 30 / 85
+商品广告: 20 / 60
+娱乐搞笑: 30 / 65
+生活记录/其他: 30 / 70
+```
+
+The first number is the manual-review threshold, and the second number is the violation threshold.
 
 ### POST /api/videos/{id}/asr/refresh
 
@@ -345,7 +387,7 @@ Query parameters:
 ```text
 status: optional, one of 复审中, 通过, 驳回, 待申诉
 aiRiskLevel: optional, for example 可疑
-violationCategory: optional, for example 暴力
+violationCategory: optional, for example 暴力. When a video has multiple categories, filtering matches any category contained in the comma-separated value.
 ```
 
 ### GET /api/review/tasks/{videoId}
@@ -359,7 +401,7 @@ Submit request:
 ```json
 {
   "status": "驳回",
-  "violationCategory": "暴力",
+  "violationCategory": "暴力,政治敏感",
   "comment": "人工复审确认驳回。"
 }
 ```

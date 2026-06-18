@@ -13,6 +13,9 @@ public class VideoListItemResponse {
     private String aiRiskLevel;
     private Double aiRiskScore;
     private String violationCategory;
+    private String contentCategory;
+    private Double categoryConfidence;
+    private String reviewStrategy;
     private Long fileSize;
     private Double duration;
 
@@ -26,6 +29,9 @@ public class VideoListItemResponse {
         response.setAiRiskLevel(video.getAiRiskLevel());
         response.setAiRiskScore(video.getAiRiskScore());
         response.setViolationCategory(video.getViolationCategory());
+        response.setContentCategory(video.getContentCategory());
+        response.setCategoryConfidence(video.getCategoryConfidence());
+        response.setReviewStrategy(video.getReviewStrategy());
         response.setFileSize(video.getFileSize());
         response.setDuration(video.getDuration());
         return response;
@@ -93,6 +99,30 @@ public class VideoListItemResponse {
 
     public void setViolationCategory(String violationCategory) {
         this.violationCategory = violationCategory;
+    }
+
+    public String getContentCategory() {
+        return contentCategory;
+    }
+
+    public void setContentCategory(String contentCategory) {
+        this.contentCategory = contentCategory;
+    }
+
+    public Double getCategoryConfidence() {
+        return categoryConfidence;
+    }
+
+    public void setCategoryConfidence(Double categoryConfidence) {
+        this.categoryConfidence = categoryConfidence;
+    }
+
+    public String getReviewStrategy() {
+        return reviewStrategy;
+    }
+
+    public void setReviewStrategy(String reviewStrategy) {
+        this.reviewStrategy = reviewStrategy;
     }
 
     public Long getFileSize() {

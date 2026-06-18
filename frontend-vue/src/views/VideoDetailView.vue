@@ -13,13 +13,14 @@
       </div>
     </div>
 
-    <div class="detail-grid">
-      <div class="panel">
-        <video v-if="video" class="video-player" controls :src="toAssetUrl(video.fileUrl)" />
-      </div>
+    <div class="detail-grid video-detail-layout">
+      <div class="detail-main-column">
+        <div class="panel video-panel">
+          <video v-if="video" class="video-player" controls :src="toAssetUrl(video.fileUrl)" />
+        </div>
 
-      <div class="panel page">
-        <el-descriptions title="视频信息" :column="1" border>
+        <div class="panel video-info-panel">
+          <el-descriptions title="视频信息" :column="2" border>
           <el-descriptions-item label="处理状态">{{ video?.status || '-' }}</el-descriptions-item>
           <el-descriptions-item label="时长">{{ formatDuration(video?.duration) }}</el-descriptions-item>
           <el-descriptions-item label="分辨率">{{ formatResolution(video) }}</el-descriptions-item>
@@ -28,11 +29,42 @@
             {{ formatUploader(video) }}
           </el-descriptions-item>
           <el-descriptions-item label="上传时间">{{ formatDate(video?.createdAt) }}</el-descriptions-item>
+          </el-descriptions>
+        </div>
+      </div>
+
+      <div class="panel page detail-side-column">
+        <el-descriptions v-if="canViewAuditEvidence" title="自动分类" :column="1" border>
+          <el-descriptions-item label="一级分类">
+            <el-tag v-if="video?.contentCategory" effect="light" type="success">
+              {{ video.contentCategory }}
+            </el-tag>
+            <span v-else>-</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="分类置信度">{{ formatPercent(video?.categoryConfidence) }}</el-descriptions-item>
+          <el-descriptions-item label="审核策略">{{ video?.reviewStrategy || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="审核阈值">
+            {{ video?.contentCategory ? reviewThresholdText(video.contentCategory) : '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="分类依据">{{ video?.categoryReason || '-' }}</el-descriptions-item>
         </el-descriptions>
 
         <el-descriptions v-if="canViewAuditEvidence && video?.aiResult" title="审核信息" :column="1" border>
           <el-descriptions-item label="AI 风险等级">{{ video.aiResult.riskLevel || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="违规类别">{{ video.violationCategory || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="违规类别">
+            <div v-if="splitCategories(video.violationCategory).length" class="category-tags">
+              <el-tag
+                v-for="category in splitCategories(video.violationCategory)"
+                :key="category"
+                :type="categoryTagType(category)"
+                effect="light"
+                size="small"
+              >
+                {{ category }}
+              </el-tag>
+            </div>
+            <span v-else>-</span>
+          </el-descriptions-item>
           <el-descriptions-item label="最终风险分">{{ video.aiResult.finalScore ?? '-' }}</el-descriptions-item>
           <el-descriptions-item label="文本风险分">{{ video.aiResult.textScore ?? '-' }}</el-descriptions-item>
           <el-descriptions-item label="图像风险分">{{ video.aiResult.imageScore ?? '-' }}</el-descriptions-item>
@@ -63,7 +95,20 @@
       <div v-else class="frame-grid">
         <div v-for="frame in pagedFrames" :key="frame.id" class="frame-item">
           <img :src="toAssetUrl(frame.frameUrl)" :alt="`frame-${frame.id}`" />
-          <span>{{ frame.timestampSec ?? 0 }}s</span>
+          <div class="frame-meta">
+            <span>{{ frame.timestampSec ?? 0 }}s</span>
+            <div v-if="splitFrameLabels(frame.label).length" class="category-tags">
+              <el-tag
+                v-for="category in splitFrameLabels(frame.label)"
+                :key="category"
+                :type="categoryTagType(category)"
+                effect="light"
+                size="small"
+              >
+                {{ category }}
+              </el-tag>
+            </div>
+          </div>
         </div>
       </div>
       <el-pagination
@@ -101,6 +146,7 @@ import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import { analyzeVideo, fetchVideoDetail, toAssetUrl } from '../api/client'
 import { getStoredUser } from '../utils/session'
+import { categoryTagType, reviewThresholdText, splitCategories } from '../utils/categories'
 
 const route = useRoute()
 const router = useRouter()
@@ -164,6 +210,10 @@ function formatFileSize(value) {
   return `${(value / 1024 / 1024).toFixed(2)} MB`
 }
 
+function formatPercent(value) {
+  return value === null || value === undefined ? '-' : `${Math.round(value * 100)}%`
+}
+
 function formatUploader(value) {
   if (!value?.uploaderId) {
     return '-'
@@ -173,6 +223,21 @@ function formatUploader(value) {
     ? `（${value.uploaderDisplayName}）`
     : ''
   return `#${value.uploaderId} / ${account}${displayName}`
+}
+
+function splitFrameLabels(value) {
+  const labelMap = {
+    violence: '暴力',
+    porn: '色情',
+    politics: '政治敏感',
+    political: '政治敏感',
+    illegal: '其他违规',
+    ad: '其他违规',
+    suspicious: '其他违规'
+  }
+  return splitCategories(value)
+    .map((label) => labelMap[label] || label)
+    .filter((label) => label !== 'normal' && label !== '正常')
 }
 
 watch(frames, () => {

@@ -1,0 +1,3 @@
+ALTER TABLE video MODIFY COLUMN violation_category VARCHAR(128) NULL;
+
+ALTER TABLE video_frame MODIFY COLUMN label VARCHAR(128) NULL;

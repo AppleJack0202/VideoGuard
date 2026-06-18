@@ -1234,3 +1234,139 @@
 - 已调用 `/ai/analyze` 验证“阿里 ASR + 百炼视频理解审核”组合，接口返回 `200`。
 - ASR 示例输出已优化为“叔叔，我不要吸二手烟。先生你好，兰州市公共场所控制吸烟条例规定了公共场所是禁止吸烟的...”。
 - 视频内容审核示例返回 `label=normal`、`confidence=0.95`、`risk_score=5`。
+
+## 2026-06-17 违规标签多分类改造
+
+### 工作内容
+
+- 将视频内容审核从单一违规标签改为多标签结果，一个视频可同时标记为 `暴力`、`政治敏感`、`色情`、`其他违规`。
+- AI 服务侧约束百炼视频理解模型输出 `labels` 数组，并兼容本地/阿里云旧格式的 `label` 字段。
+- 后端继续复用 `video.violation_category` 和 `video_frame.label` 字段，以逗号分隔形式保存多个类别，避免大规模表结构重做。
+- 后端列表筛选、复审任务筛选改为包含匹配，选择 `暴力` 时可筛出 `暴力,政治敏感` 这类多标签视频。
+- 人工复审页违规类别改为多选，审核员可一次提交多个违规类别。
+- 统计看板的违规类别分布会拆分多标签分别计数，而不是把 `暴力,政治敏感` 当成一个新类别。
+- 前端视频管理、人工复审、视频详情、复审详情页面将违规类别展示为多个标签，关键帧也会展示模型返回的多标签。
+
+### 数据库变更
+
+- `video.violation_category` 调整为 `VARCHAR(128)`。
+- `video_frame.label` 调整为 `VARCHAR(128)`。
+- 新增迁移脚本：`sql/migration-20260617-multi-category.sql`。
+
+## 2026-06-17 复审详情页 AI 重新分析入口修正
+
+### 工作内容
+
+- 根据页面验收反馈，恢复视频管理和人工复审列表的简洁操作按钮样式。
+- 将复审详情页右上角原“刷新”按钮改为“AI 重新分析”。
+- “AI 重新分析”会调用视频重新分析接口，完成后自动刷新当前复审详情页数据。
+- 修复审核员点击“AI 重新分析”显示请求失败的问题：后端鉴权已允许审核员调用 `POST /api/videos/{id}/analyze`。
+
+### 验证情况
+
+- 已执行 `npm run build`，前端构建通过。
+- 已重启 SpringBoot 后端。
+- 使用审核员 token 调用 `POST /api/videos/999999/analyze`，返回 `400 Video not found` 而非 `403 Permission denied`，说明权限已放通。
+
+## 2026-06-17 自动内容分类加分项实现
+
+### 工作内容
+
+- 按课程设计“自动分类（可选，加分项）”要求，实现视频一级内容分类。
+- AI 服务新增 `POST /ai/content-category`，支持单独按标题、描述、ASR 文本和视频内容分类。
+- 现有 `POST /ai/analyze` 已集成自动分类，分析结果会额外返回 `content_category`。
+- 分类类别固定为：
+  - 新闻资讯
+  - 娱乐搞笑
+  - 教育科普
+  - 生活记录
+  - 商品广告
+  - 其他
+- 分类实现策略：
+  - 优先调用阿里百炼视频理解模型，结合视频画面、标题、描述和 ASR 文本分类。
+  - 视频理解不可用时，调用阿里百炼文本模型，基于标题、描述和 ASR 文本分类。
+  - API 不可用时，使用本地关键词规则兜底，避免主分析流程中断。
+- 已将分类结果接入审核策略阈值：
+  - 教育科普：复审阈值 45，违规阈值 80。
+  - 新闻资讯：复审阈值 30，违规阈值 85。
+  - 商品广告：复审阈值 20，违规阈值 60。
+  - 娱乐搞笑：复审阈值 30，违规阈值 65。
+  - 生活记录/其他：复审阈值 30，违规阈值 70。
+- 后端新增保存字段：
+  - `content_category`
+  - `category_confidence`
+  - `category_reason`
+  - `review_strategy`
+- 前端视频管理、人工复审列表、视频详情、复审详情页展示内容分类和审核策略。
+
+### 数据库变更
+
+- `video` 表新增内容分类相关字段。
+- 新增迁移脚本：`sql/migration-20260617-content-category.sql`。
+- 本机 MySQL 已执行迁移。
+
+### 验证情况
+
+- 已执行 `python -m py_compile ai-service-fastapi/app/main.py`。
+- 已执行 `mvn -q -DskipTests compile`。
+- 已执行 `npm run build`。
+- 已重启 FastAPI 和 SpringBoot。
+- 已调用 `/ai/content-category`，示例返回 `教育科普`、`confidence=0.85`、`review_strategy=教育类策略`。
+- 已通过 SpringBoot `POST /api/videos/10/analyze` 完整链路验证，分析后返回并保存 `contentCategory`、`categoryConfidence`、`reviewStrategy`。
+- 已验证策略阈值函数：
+  - `教育科普 + 40分 -> PASS`
+  - `生活记录 + 40分 -> SUSPICIOUS`
+  - `商品广告 + 25分 -> SUSPICIOUS`
+  - `新闻资讯 + 75分 -> SUSPICIOUS`
+
+## 2026-06-17 AI 重新分析请求失败修复
+
+### 问题现象
+
+- 复审详情页点击“AI 重新分析”后，前端提示“请求失败”。
+
+### 原因定位
+
+- 后端日志显示 FastAPI 返回 `502 Bad Gateway`。
+- 根因是阿里百炼视频理解接口对部分视频返回 `DataInspectionFailed: Input video data may contain inappropriate content`。
+- 之前代码将该错误直接抛给 SpringBoot，导致整个 `/api/videos/{id}/analyze` 请求失败。
+
+### 修复内容
+
+- AI 服务视频审核调用失败时不再中断主流程。
+- 当百炼视频理解因为内容安全检查拒绝输入时，系统将视频内容结果降级为：
+  - `label = suspicious`
+  - `image_score = 70`
+  - `confidence = 0.75`
+- 这样视频会进入人工复审，而不是前端请求失败。
+
+### 验证情况
+
+- 已执行 `python -m py_compile ai-service-fastapi/app/main.py`。
+- 已执行 `mvn -q -DskipTests compile`。
+- 已重启 FastAPI。
+- 已使用审核员账号调用 `POST /api/videos/13/analyze`，接口返回成功，并生成：
+  - AI 风险等级：可疑
+  - 最终风险分：70
+  - 内容分类：新闻资讯
+  - 审核策略：新闻类策略
+
+## 2026-06-17 视频详情布局与统计通过率修复
+
+### 调整内容
+
+- 优化视频详情页布局：
+  - 原先右侧同时展示视频信息、自动分类、审核信息，页面右侧过长。
+  - 调整为左侧展示播放器，并将“视频信息”移动到播放器下方。
+  - 右侧只保留“自动分类”和“审核信息”，降低页面纵向堆叠压力。
+- 修复统计看板 AI 通过率：
+  - 原口径只统计“已上传/预审中”状态的视频，已经通过或进入复审流程的视频未计入分母，容易显示为 0。
+  - 新口径改为：已产生 AI 风险等级的视频中，`AI 风险等级=正常` 的占比。
+
+### 验证情况
+
+- 已执行 `mvn -q -DskipTests compile`。
+- 已执行 `npm run build`。
+- 已重启 SpringBoot 后端。
+- 已调用 `GET /api/statistics/overview`，返回 `aiPassRate=60.0`，不再固定为 0。
+- 已在浏览器打开 `http://localhost:5173/videos/12` 验证详情页布局，视频信息已位于播放器下方。
